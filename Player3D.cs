@@ -15,6 +15,7 @@ public partial class Player3D : CharacterBody3D
 	private string _walkAnim = "";
 	private string _runAnim = "";
 	private string _jumpAnim = "";
+	private string _sitAnim = "";
 	private string _currentState = "";
 
 	public override void _Ready()
@@ -47,7 +48,7 @@ public partial class Player3D : CharacterBody3D
 			}
 		}
 
-		// Create custom library for walk and run.
+		// Create custom library for walk, run, jump, and sit.
 		var customLibrary = new AnimationLibrary();
 		_animPlayer.AddAnimationLibrary("Custom", customLibrary);
 
@@ -77,7 +78,16 @@ public partial class Player3D : CharacterBody3D
 			GD.Print("Jump animation loaded!");
 		}
 
-		GD.Print($"Idle: '{_idleAnim}' Walk: '{_walkAnim}' Run: '{_runAnim}' Jump: '{_jumpAnim}'");
+		var sitAnim = ExtractAnimation("res://models/Sitting Idle.fbx");
+		if (sitAnim != null)
+		{
+			sitAnim.LoopMode = Animation.LoopModeEnum.Linear;
+			customLibrary.AddAnimation("Sitting", sitAnim);
+			_sitAnim = "Custom/Sitting";
+			GD.Print("Sitting animation loaded!");
+		}
+
+		GD.Print($"Idle: '{_idleAnim}' Walk: '{_walkAnim}' Run: '{_runAnim}' Jump: '{_jumpAnim}' Sit: '{_sitAnim}'");
 
 		// Start idle.
 		if (_idleAnim != "")
@@ -169,7 +179,7 @@ public partial class Player3D : CharacterBody3D
 		}
 
 		// Jump.
-		if (Input.IsActionJustPressed("ui_accept") && IsOnFloor())
+		if (Input.IsActionJustPressed("ui_accept") && IsOnFloor() && _currentState != "sit")
 		{
 			velocity.Y = JumpVelocity;
 			if (_jumpAnim != "")
@@ -179,7 +189,28 @@ public partial class Player3D : CharacterBody3D
 			}
 		}
 
-		Vector2 inputDir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+		// Sit toggle.
+		if (Input.IsActionJustPressed("sit") && IsOnFloor())
+		{
+			if (_currentState == "sit")
+			{
+				// Stand back up.
+				_animPlayer.Play(_idleAnim);
+				_currentState = "idle";
+			}
+			else if (_sitAnim != "")
+			{
+				_animPlayer.Play(_sitAnim);
+				_currentState = "sit";
+			}
+		}
+
+		// Block movement while sitting.
+		Vector2 inputDir = Vector2.Zero;
+		if (_currentState != "sit")
+		{
+			inputDir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+		}
 
 		Vector3 forward = -GlobalTransform.Basis.Z;
 		Vector3 right = GlobalTransform.Basis.X;
@@ -205,8 +236,8 @@ public partial class Player3D : CharacterBody3D
 			velocity.Z = Mathf.MoveToward(velocity.Z, 0, Speed);
 		}
 
-		// Only change animations when on the floor AND not in a fresh jump.
-		if (IsOnFloor() && _currentState != "jump")
+		// Only change animations when on the floor AND not jumping or sitting.
+		if (IsOnFloor() && _currentState != "jump" && _currentState != "sit")
 		{
 			if (direction != Vector3.Zero)
 			{
