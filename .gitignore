@@ -3,3 +3,4 @@
 # General ignores
 *.tmp
 export_presets.cfg
+/android/
