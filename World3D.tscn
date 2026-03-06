@@ -31,7 +31,7 @@ script = ExtResource("1_o853b")
 [node name="CharacterModel" parent="Player3D" unique_id=1245462181 instance=ExtResource("2_by4yc")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 4, 0)
 
-[node name="Skeleton3D" parent="Player3D/CharacterModel" index="0" unique_id=893350844]
+[node name="Skeleton3D" parent="Player3D/CharacterModel" index="0" unique_id=821916645]
 bones/0/position = Vector3(-0.008158799, 0.96912336, 0.0008746432)
 bones/0/rotation = Quaternion(-0.029967535, -0.36771902, -0.012208062, 0.92937374)
 bones/1/rotation = Quaternion(-0.029808652, 0.04123928, -0.004441385, 0.99869466)
