@@ -1,0 +1,33 @@
+[gd_scene format=3 uid="uid://dmage7qn3bmky"]
+
+[ext_resource type="Texture2D" uid="uid://f36vjhjwny3l" path="res://Floor.tres" id="1_bcbcq"]
+[ext_resource type="Texture2D" uid="uid://d1a6swpxc5bqf" path="res://unnamed.png" id="2_bcbcq"]
+[ext_resource type="Script" uid="uid://bandw3wnnakkj" path="res://Player.cs" id="3_eu7l1"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bcbcq"]
+size = Vector2(445.00037, 910.0006)
+
+[node name="World" type="Node2D" unique_id=1268865862]
+
+[node name="Background" type="Sprite2D" parent="." unique_id=1185160709]
+modulate = Color(0.14901961, 0.94509804, 0.3137255, 1)
+scale = Vector2(3000, 3000)
+texture = ExtResource("1_bcbcq")
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=413240204]
+z_index = 5
+scale = Vector2(0.2, 0.2)
+script = ExtResource("3_eu7l1")
+
+[node name="Camera2D" type="Camera2D" parent="Player" unique_id=1512110367]
+zoom = Vector2(1.8, 1.8)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player" unique_id=324652204]
+position = Vector2(32.499996, 10.000048)
+scale = Vector2(0.9999991, 0.9999991)
+shape = SubResource("RectangleShape2D_bcbcq")
+
+[node name="PlayerImage" type="Sprite2D" parent="Player" unique_id=1598779356]
+scale = Vector2(4.9999995, 4.9999995)
+texture = ExtResource("2_bcbcq")
+hframes = 7

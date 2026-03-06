@@ -1,0 +1,98 @@
+[gd_scene format=3 uid="uid://dc48alxr7uvkn"]
+
+[ext_resource type="Script" uid="uid://cyy07s08m6fuk" path="res://Player3D.cs" id="1_o853b"]
+[ext_resource type="PackedScene" uid="uid://cjdy2eemayfg6" path="res://models/Idle.fbx" id="2_by4yc"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_f5f6b"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_o853b"]
+
+[sub_resource type="Sky" id="Sky_by4yc"]
+sky_material = SubResource("ProceduralSkyMaterial_o853b")
+
+[sub_resource type="Environment" id="Environment_j7kei"]
+background_mode = 2
+sky = SubResource("Sky_by4yc")
+ambient_light_source = 3
+
+[node name="World3D" type="Node3D" unique_id=1310688496]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1422342385]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 20.121458, 0)
+
+[node name="Land" type="CSGBox3D" parent="." unique_id=1800293262]
+use_collision = true
+size = Vector3(30, 1, 30)
+
+[node name="Player3D" type="CharacterBody3D" parent="." unique_id=883937040]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.3723984, 0)
+script = ExtResource("1_o853b")
+
+[node name="CharacterModel" parent="Player3D" unique_id=1245462181 instance=ExtResource("2_by4yc")]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 4, 0)
+
+[node name="Skeleton3D" parent="Player3D/CharacterModel" index="0" unique_id=893350844]
+bones/0/position = Vector3(-0.008158799, 0.96912336, 0.0008746432)
+bones/0/rotation = Quaternion(-0.029967535, -0.36771902, -0.012208062, 0.92937374)
+bones/1/rotation = Quaternion(-0.029808652, 0.04123928, -0.004441385, 0.99869466)
+bones/2/rotation = Quaternion(0.10063449, 0.08286455, -0.0064381426, 0.9914458)
+bones/3/rotation = Quaternion(0.113401495, 0.08277464, -0.0075053475, 0.9900668)
+bones/4/rotation = Quaternion(-0.037560254, -0.011281728, 0.00081578904, 0.99923044)
+bones/5/rotation = Quaternion(-0.05446898, 0.17718843, 0.008620537, 0.98263067)
+bones/7/rotation = Quaternion(-0.5800276, 0.5026415, -0.51578605, -0.3806367)
+bones/8/rotation = Quaternion(0.47771108, 0.052371, 0.09459661, 0.87183774)
+bones/9/rotation = Quaternion(0.04469932, 0.029114395, -0.3595382, 0.9316043)
+bones/10/rotation = Quaternion(0.10675414, -0.06460048, -0.101121075, 0.98701817)
+bones/11/rotation = Quaternion(0.23135208, 0.14355768, -0.20000008, 0.94120526)
+bones/12/rotation = Quaternion(-0.04118554, 0.0005010625, 0.17853037, 0.9830719)
+bones/13/rotation = Quaternion(-8.8093955e-08, -0.0008079622, 3.1914855e-08, 0.9999997)
+bones/15/rotation = Quaternion(0.039575655, 0.009809295, 0.010215246, 0.99911624)
+bones/16/rotation = Quaternion(0.14729416, 0.00023623915, 0.009861073, 0.9890436)
+bones/17/rotation = Quaternion(1.1890334e-09, 2.5819936e-16, 2.1715095e-07, 1)
+bones/19/rotation = Quaternion(0.11098406, 0.008559103, 0.024539884, 0.9934823)
+bones/20/rotation = Quaternion(0.26357207, 0.0013877382, -0.016769962, 0.9644929)
+bones/21/rotation = Quaternion(5.03772e-10, -9.2949755e-08, 2.0014704e-07, 1)
+bones/23/rotation = Quaternion(0.18701126, -0.008551911, 0.067379005, 0.9800071)
+bones/24/rotation = Quaternion(0.32042286, -0.0023631528, -0.033817656, 0.9466678)
+bones/25/rotation = Quaternion(6.413264e-08, -1.4838196e-14, -2.313609e-07, 1)
+bones/27/rotation = Quaternion(0.20716819, -0.011139669, 0.09207968, 0.97389865)
+bones/28/rotation = Quaternion(0.34928787, -0.012203415, -0.06870859, 0.9344133)
+bones/29/rotation = Quaternion(2.0816677e-17, -4.135903e-24, -2.3166649e-07, 1)
+bones/31/rotation = Quaternion(0.52596647, 0.5440755, -0.54699314, 0.35796604)
+bones/32/rotation = Quaternion(0.5108179, -0.06281532, 0.13869227, 0.8460992)
+bones/33/rotation = Quaternion(-0.012449597, 0.05786814, 0.40497908, 0.91240805)
+bones/34/rotation = Quaternion(-0.16276729, 0.14007086, 0.015133802, 0.9765541)
+bones/35/rotation = Quaternion(0.30703053, -0.008167957, 0.15544371, 0.93888384)
+bones/36/rotation = Quaternion(-0.0072764764, 0.0016446359, 0.0011964842, 0.99997145)
+bones/37/rotation = Quaternion(2.5460812e-08, 0.0007452243, 2.4145996e-07, 0.99999976)
+bones/39/rotation = Quaternion(0.032681096, -0.0059057376, 0.061013494, 0.9975843)
+bones/40/rotation = Quaternion(0.14277366, -0.0007220343, -0.0069315066, 0.98973083)
+bones/41/rotation = Quaternion(3.3475055e-07, -4.4378452e-11, 7.3407136e-08, 1)
+bones/43/rotation = Quaternion(0.12465195, 0.0061079063, -0.08585454, 0.9884603)
+bones/44/rotation = Quaternion(0.1897124, -0.0013185376, 0.014220389, 0.9817358)
+bones/45/rotation = Quaternion(-4.2758992e-07, -1.7802076e-11, -2.5444933e-07, 1)
+bones/47/rotation = Quaternion(0.26495308, -0.013263851, -0.1308711, 0.9552469)
+bones/48/rotation = Quaternion(0.27554512, 0.0017582147, 0.02405335, 0.96098554)
+bones/51/rotation = Quaternion(0.29092038, -0.014014918, -0.16395947, 0.9424894)
+bones/52/rotation = Quaternion(0.33614826, 0.011288902, 0.04954068, 0.9404375)
+bones/53/rotation = Quaternion(1.2450221e-07, 7.530854e-08, 7.254858e-08, 1)
+bones/55/rotation = Quaternion(-0.12517, 0.04129878, 0.9837037, 0.12228698)
+bones/56/rotation = Quaternion(-0.32146972, 0.07610088, -0.024040692, 0.9435507)
+bones/57/rotation = Quaternion(0.6058151, 0.06424617, 0.12939923, 0.78237873)
+bones/58/rotation = Quaternion(0.3499065, 0.0038085375, -0.0019665225, 0.9367749)
+bones/60/rotation = Quaternion(0.07880982, 0.22476345, 0.9658577, -0.10192884)
+bones/61/rotation = Quaternion(-0.3248079, 0.11805385, -0.033904105, 0.9377706)
+bones/62/rotation = Quaternion(0.50094867, -0.028317671, -0.05722132, 0.86311895)
+bones/63/rotation = Quaternion(0.35427392, 0.016493801, -0.023763172, 0.9346943)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player3D" unique_id=1019859047]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.015786052, 5.057721, 0)
+shape = SubResource("CapsuleShape3D_f5f6b")
+
+[node name="Camera3D" type="Camera3D" parent="Player3D" unique_id=702447189]
+transform = Transform3D(1, 0, 0, 0, 0.7071068, 0.7071068, 0, -0.7071068, 0.7071068, -0.25126886, 7.6780233, 4.126366)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=590643794]
+environment = SubResource("Environment_j7kei")
+
+[editable path="Player3D/CharacterModel"]
