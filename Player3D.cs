@@ -241,5 +241,3 @@ public partial class Player3D : CharacterBody3D
 		MoveAndSlide();
 	}
 }
-
-//test github
