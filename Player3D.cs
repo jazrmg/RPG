@@ -52,7 +52,7 @@ public partial class Player3D : CharacterBody3D
 		var customLibrary = new AnimationLibrary();
 		_animPlayer.AddAnimationLibrary("Custom", customLibrary);
 
-		var walkAnim = ExtractAnimation("res://models/Walking.fbx");
+		var walkAnim = ExtractAnimation("res://models/player/Walking.fbx");
 		if (walkAnim != null)
 		{
 			customLibrary.AddAnimation("Walking", walkAnim);
@@ -60,7 +60,7 @@ public partial class Player3D : CharacterBody3D
 			GD.Print("Walking animation loaded!");
 		}
 
-		var runAnim = ExtractAnimation("res://models/Running.fbx");
+		var runAnim = ExtractAnimation("res://models/player/Running.fbx");
 		if (runAnim != null)
 		{
 			customLibrary.AddAnimation("Running", runAnim);
@@ -68,7 +68,7 @@ public partial class Player3D : CharacterBody3D
 			GD.Print("Running animation loaded!");
 		}
 
-		var jumpAnim = ExtractAnimation("res://models/Jump.fbx");
+		var jumpAnim = ExtractAnimation("res://models/player/Jump.fbx");
 		if (jumpAnim != null)
 		{
 			// Don't loop jump — it should play once.
@@ -78,7 +78,7 @@ public partial class Player3D : CharacterBody3D
 			GD.Print("Jump animation loaded!");
 		}
 
-		var sitAnim = ExtractAnimation("res://models/Sitting Idle.fbx");
+		var sitAnim = ExtractAnimation("res://models/player/Sitting Idle.fbx");
 		if (sitAnim != null)
 		{
 			sitAnim.LoopMode = Animation.LoopModeEnum.Linear;
