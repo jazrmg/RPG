@@ -4,30 +4,32 @@ using System.Collections.Generic;
 public partial class Player3D : CharacterBody3D
 {
 	[Export] public float MaxGroundSpeed = 5.0f;
-	[Export] public float GroundAcceleration = 25.0f;
-	[Export] public float GroundDeceleration = 30.0f;
-	[Export] public float GroundFriction = 0.95f;
+	[Export] public float GroundAcceleration = 20.0f;
+	[Export] public float GroundDeceleration = 25.0f;
+	[Export] public float GroundFriction = 0.92f;
 	
 	[Export] public float MaxRunSpeed = 8.5f;
-	[Export] public float RunAcceleration = 35.0f;
-	[Export] public float RunDeceleration = 40.0f;
+	[Export] public float RunAcceleration = 30.0f;
+	[Export] public float RunDeceleration = 35.0f;
 	
-	[Export] public float AirAcceleration = 15.0f;
-	[Export] public float AirDeceleration = 10.0f;
-	[Export] public float AirControl = 0.4f;
+	[Export] public float AirAcceleration = 12.0f;
+	[Export] public float AirDeceleration = 8.0f;
+	[Export] public float AirControl = 0.5f;
 	
-	[Export] public float JumpForce = 6.5f;
+	[Export] public float JumpForce = 4.0f;
 	[Export] public float JumpCutMultiplier = 0.5f;
+	[Export] public float ApexGravityMultiplier = 0.5f;
+	[Export] public float FallGravityMultiplier = 1.2f;
 	[Export] public float TerminalVelocity = 20.0f;
 	
 	[Export] public float MouseSensitivity = 0.3f;
-	[Export] public float RotationSpeed = 10.0f;
+	[Export] public float RotationSpeed = 12.0f;
 	[Export] public float CameraMinPitchDegrees = -60.0f;
 	[Export] public float CameraMaxPitchDegrees = 30.0f;
 	[Export] public float AttackCooldown = 0.6f;
 	
-	[Export] public float CoyoteTime = 0.1f;
-	[Export] public float JumpBufferTime = 0.1f;
+	[Export] public float CoyoteTime = 0.12f;
+	[Export] public float JumpBufferTime = 0.12f;
 	
 	[Export] public float SlashDamage = 25.0f;
 	[Export] public float SlashKnockback = 10.0f;
@@ -87,6 +89,7 @@ public partial class Player3D : CharacterBody3D
 
 	// Physics state
 	private Vector3 _velocity = Vector3.Zero;
+	private Vector3 _lastInputDirection = Vector3.Zero;
 	private float _coyoteCounter = 0.0f;
 	private float _jumpBufferCounter = 0.0f;
 	private bool _isJumping = false;
@@ -195,7 +198,7 @@ public partial class Player3D : CharacterBody3D
 		}
 
 		ApplyGravity(ref _velocity, dt);
-		HandleMovement(moveDirection, isRunning, dt);
+		HandleMovement(moveDirection, isRunning, isGrounded, dt);
 		HandleJump();
 
 		// Check attack hits during attack animation
@@ -224,13 +227,14 @@ public partial class Player3D : CharacterBody3D
 	{
 		if (!IsOnFloor())
 		{
-			velocity.Y -= _gravity * delta;
+			// Apex gravity - lighter gravity at jump peak
+			float gravityMultiplier = velocity.Y > 0 ? ApexGravityMultiplier : FallGravityMultiplier;
+			velocity.Y -= _gravity * gravityMultiplier * delta;
 		}
 	}
 
-	private void HandleMovement(Vector3 desiredDirection, bool isRunning, float delta)
+	private void HandleMovement(Vector3 desiredDirection, bool isRunning, bool isGrounded, float delta)
 	{
-		bool isGrounded = IsOnFloor();
 		float maxSpeed = isRunning ? MaxRunSpeed : MaxGroundSpeed;
 		float acceleration = isRunning ? RunAcceleration : GroundAcceleration;
 		float deceleration = isRunning ? RunDeceleration : GroundDeceleration;
@@ -244,19 +248,38 @@ public partial class Player3D : CharacterBody3D
 		}
 
 		Vector3 horizontalVelocity = new Vector3(_velocity.X, 0, _velocity.Z);
-		Vector3 desiredVelocity = desiredDirection * maxSpeed;
 
+		// Handle movement input
 		if (desiredDirection != Vector3.Zero)
 		{
-			// Accelerate toward desired direction
-			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, acceleration * delta);
+			// Smooth input transitions
+			_lastInputDirection = _lastInputDirection.Lerp(desiredDirection, 0.1f);
+			
+			Vector3 desiredVelocity = _lastInputDirection * maxSpeed;
+
+			// Smooth acceleration - use MoveToward for more natural feel
+			float currentSpeed = horizontalVelocity.Length();
+			float desiredSpeed = desiredVelocity.Length();
+			
+			if (currentSpeed < desiredSpeed)
+			{
+				// Accelerate
+				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, acceleration * delta);
+			}
+			else
+			{
+				// Match desired velocity smoothly
+				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, deceleration * delta * 0.5f);
+			}
 		}
 		else
 		{
+			_lastInputDirection = Vector3.Zero;
+			
 			// Decelerate
 			if (isGrounded)
 			{
-				// Apply friction on ground
+				// Apply friction on ground - more realistic deceleration
 				horizontalVelocity *= GroundFriction;
 			}
 			else
@@ -319,11 +342,14 @@ public partial class Player3D : CharacterBody3D
 			return;
 
 		float targetYaw = Mathf.Atan2(direction.X, direction.Z);
-		float t = Mathf.Clamp(RotationSpeed * delta, 0.0f, 1.0f);
+		float currentYaw = Rotation.Y;
+
+		// Smooth rotation with LerpAngle
+		float newYaw = Mathf.LerpAngle(currentYaw, targetYaw, RotationSpeed * delta);
 
 		Rotation = new Vector3(
 			Rotation.X,
-			Mathf.LerpAngle(Rotation.Y, targetYaw, t),
+			newYaw,
 			Rotation.Z
 		);
 	}
@@ -506,7 +532,6 @@ public partial class Player3D : CharacterBody3D
 
 	private void CheckAttackHits()
 	{
-		// Get all colliders overlapping with the sword
 		if (_swordRoot == null)
 		{
 			return;
@@ -523,10 +548,8 @@ public partial class Player3D : CharacterBody3D
 		{
 			var collider = (Node)result["collider"];
 			
-			// Check if the collider IS an Enemy
 			if (collider is Enemy enemy)
 			{
-				// Only hit each enemy once per attack
 				if (!_hitEnemiesThisAttack.Contains(enemy))
 				{
 					_hitEnemiesThisAttack.Add(enemy);

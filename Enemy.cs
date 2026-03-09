@@ -3,18 +3,22 @@ using System.Collections.Generic;
 
 public partial class Enemy : CharacterBody3D
 {
-	[Export] public float Speed = 1.5f;
+	[Export] public float Speed = 2.5f;
+	[Export] public float Acceleration = 18.0f;
+	[Export] public float Deceleration = 15.0f;
+	[Export] public float Friction = 0.90f;
 	[Export] public float ChaseRange = 20.0f;
-	[Export] public float StopDistance = 1.5f;
-	[Export] public float RotationSpeed = 8.0f;
-	[Export] public float GroundDeceleration = 12.0f;
+	[Export] public float StopDistance = 1.8f;
+	[Export] public float RotationSpeed = 10.0f;
 	[Export] public float MaxHealth = 100.0f;
 	[Export] public float KnockbackResistance = 0.5f;
+	[Export] public float KnockbackDamping = 0.88f;
 	[Export] public float HealthBarHeightOffset = 2.5f;
 	[Export] public float SpawnInvulnerabilityTime = 0.5f;
 
 	private const string PlayerGroup = "player";
 	private const string HitboxPath = "HitBox";
+	private const string DeathFbxPath = "res://models/enemy/Flying Back Death.fbx";
 
 	private readonly float _gravity = (float)ProjectSettings.GetSetting("physics/3d/default_gravity");
 
@@ -24,10 +28,11 @@ public partial class Enemy : CharacterBody3D
 	private ProgressBar _healthBar;
 	private CanvasLayer _healthBarCanvas;
 	private string _walkAnim = "";
+	private string _deathAnim = "";
 	private bool _isWalking = false;
 	private float _currentHealth;
+	private Vector3 _velocity = Vector3.Zero;
 	private Vector3 _knockbackVelocity = Vector3.Zero;
-	private float _knockbackDamping = 0.9f;
 	private float _invulnerabilityTimer = 0.0f;
 	private bool _isDead = false;
 	private bool _isInitialized = false;
@@ -52,6 +57,9 @@ public partial class Enemy : CharacterBody3D
 		{
 			_animPlayer.RootNode = _animPlayer.GetParent().GetPath();
 			_walkAnim = ResolveWalkAnimation(_animPlayer);
+			
+			// Load and setup death animation
+			SetupDeathAnimation();
 		}
 
 		// Find HitBox
@@ -80,8 +88,7 @@ public partial class Enemy : CharacterBody3D
 
 		if (!ResolvePlayer()) return;
 
-		Vector3 velocity = Velocity;
-		ApplyGravity(ref velocity, dt);
+		ApplyGravity(ref _velocity, dt);
 
 		Vector3 toPlayer = _player.GlobalPosition - GlobalPosition;
 		toPlayer.Y = 0.0f;
@@ -89,35 +96,49 @@ public partial class Enemy : CharacterBody3D
 		float distance = toPlayer.Length();
 		bool shouldChase = distance <= ChaseRange && distance > StopDistance;
 
+		// Smooth acceleration-based movement
+		Vector3 horizontalVelocity = new Vector3(_velocity.X, 0, _velocity.Z);
+
 		if (shouldChase && !toPlayer.IsZeroApprox())
 		{
 			Vector3 direction = toPlayer.Normalized();
-			velocity.X = direction.X * Speed;
-			velocity.Z = direction.Z * Speed;
+			Vector3 desiredVelocity = direction * Speed;
+
+			// Smooth acceleration toward target speed
+			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, Acceleration * dt);
 
 			RotateTowardDirection(direction, dt);
 			SetWalking(true);
 		}
 		else
 		{
-			velocity.X = Mathf.MoveToward(velocity.X, 0.0f, GroundDeceleration * dt);
-			velocity.Z = Mathf.MoveToward(velocity.Z, 0.0f, GroundDeceleration * dt);
+			// Smooth deceleration when not chasing
+			if (IsOnFloor())
+			{
+				horizontalVelocity *= Friction;
+			}
+			else
+			{
+				horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, Deceleration * dt);
+			}
 
-			bool stillMoving = Mathf.Abs(velocity.X) > 0.01f || Mathf.Abs(velocity.Z) > 0.01f;
+			bool stillMoving = horizontalVelocity.Length() > 0.1f;
 			SetWalking(stillMoving);
 		}
 
-		// Apply knockback
-		velocity.X += _knockbackVelocity.X;
-		velocity.Z += _knockbackVelocity.Z;
-		_knockbackVelocity *= _knockbackDamping;
-
-		if (_knockbackVelocity.Length() < 0.1f)
+		// Apply knockback with smooth damping
+		_knockbackVelocity *= KnockbackDamping;
+		if (_knockbackVelocity.Length() < 0.05f)
 		{
 			_knockbackVelocity = Vector3.Zero;
 		}
 
-		Velocity = velocity;
+		horizontalVelocity += _knockbackVelocity;
+
+		_velocity.X = horizontalVelocity.X;
+		_velocity.Z = horizontalVelocity.Z;
+
+		Velocity = _velocity;
 		MoveAndSlide();
 		UpdateHealthBarPosition();
 	}
@@ -148,13 +169,12 @@ public partial class Enemy : CharacterBody3D
 		if (direction == Vector3.Zero) return;
 
 		float targetYaw = Mathf.Atan2(direction.X, direction.Z);
-		float t = Mathf.Clamp(RotationSpeed * delta, 0.0f, 1.0f);
+		float currentYaw = Rotation.Y;
 
-		Rotation = new Vector3(
-			Rotation.X,
-			Mathf.LerpAngle(Rotation.Y, targetYaw, t),
-			Rotation.Z
-		);
+		// Smooth rotation using LerpAngle for better feel
+		float newYaw = Mathf.LerpAngle(currentYaw, targetYaw, RotationSpeed * delta);
+
+		Rotation = new Vector3(Rotation.X, newYaw, Rotation.Z);
 	}
 
 	private void SetWalking(bool walking)
@@ -199,6 +219,121 @@ public partial class Enemy : CharacterBody3D
 		}
 
 		return "";
+	}
+
+	private void SetupDeathAnimation()
+	{
+		if (_animPlayer == null) return;
+
+		// Load death animation from FBX file
+		Animation deathAnimation = ExtractAnimationFromFbx(DeathFbxPath, false);
+		
+		if (deathAnimation == null)
+		{
+			GD.PrintErr("[Death] Failed to load death animation from Flying Back Death.fbx");
+			return;
+		}
+
+		// Create or get the animation library
+		AnimationLibrary library = null;
+		try
+		{
+			library = _animPlayer.GetAnimationLibrary("EnemyAnims");
+		}
+		catch
+		{
+			// Library doesn't exist, will create new one
+			library = null;
+		}
+
+		if (library == null)
+		{
+			library = new AnimationLibrary();
+			_animPlayer.AddAnimationLibrary("EnemyAnims", library);
+		}
+
+		// Add death animation to library
+		library.AddAnimation("Death", deathAnimation);
+		_deathAnim = "EnemyAnims/Death";
+		
+		GD.Print("[Death] Death animation loaded: " + _deathAnim);
+	}
+
+	private Animation ExtractAnimationFromFbx(string fbxPath, bool loop)
+	{
+		PackedScene scene = GD.Load<PackedScene>(fbxPath);
+		if (scene == null)
+		{
+			GD.PrintErr($"[ANIM_LOAD] Failed to load FBX: {fbxPath}");
+			return null;
+		}
+
+		Node instance = scene.Instantiate();
+		AnimationPlayer importedAnimPlayer = FindAnimationPlayer(instance);
+
+		if (importedAnimPlayer == null)
+		{
+			GD.PrintErr($"[ANIM_LOAD] No AnimationPlayer found in {fbxPath}");
+			instance.QueueFree();
+			return null;
+		}
+
+		Animation foundAnimation = null;
+
+		// Try to find mixamo_com animation
+		foreach (string libraryName in importedAnimPlayer.GetAnimationLibraryList())
+		{
+			AnimationLibrary library = importedAnimPlayer.GetAnimationLibrary(libraryName);
+			if (library.HasAnimation("mixamo_com"))
+			{
+				foundAnimation = (Animation)library.GetAnimation("mixamo_com").Duplicate();
+				GD.Print($"[ANIM_LOAD] Found mixamo_com in {fbxPath}");
+				break;
+			}
+		}
+
+		// If not found, try first available animation
+		if (foundAnimation == null)
+		{
+			foreach (string libraryName in importedAnimPlayer.GetAnimationLibraryList())
+			{
+				AnimationLibrary library = importedAnimPlayer.GetAnimationLibrary(libraryName);
+				foreach (string animName in library.GetAnimationList())
+				{
+					if (animName != "Take 001")
+					{
+						foundAnimation = (Animation)library.GetAnimation(animName).Duplicate();
+						GD.Print($"[ANIM_LOAD] Using animation '{animName}' from {fbxPath}");
+						break;
+					}
+				}
+				if (foundAnimation != null) break;
+			}
+		}
+
+		instance.QueueFree();
+
+		if (foundAnimation == null)
+		{
+			GD.PrintErr($"[ANIM_LOAD] No usable animation found in {fbxPath}");
+			return null;
+		}
+
+		// Remove Hips track (root motion)
+		for (int i = foundAnimation.GetTrackCount() - 1; i >= 0; i--)
+		{
+			string trackPath = foundAnimation.TrackGetPath(i).ToString();
+			if (trackPath.Contains("Hips") && foundAnimation.TrackGetType(i) == Animation.TrackType.Position3D)
+			{
+				foundAnimation.RemoveTrack(i);
+			}
+		}
+
+		foundAnimation.LoopMode = loop
+			? Animation.LoopModeEnum.Linear
+			: Animation.LoopModeEnum.None;
+
+		return foundAnimation;
 	}
 
 	private AnimationPlayer FindAnimationPlayer(Node node)
@@ -304,8 +439,36 @@ public partial class Enemy : CharacterBody3D
 
 	private void Die()
 	{
+		// Disable physics and movement
+		SetPhysicsProcess(false);
+		
+		// Spawn new enemies first
 		SpawnRespawnEnemies();
-		QueueFree();
+		
+		// Play death animation
+		if (_animPlayer != null && !string.IsNullOrEmpty(_deathAnim))
+		{
+			GD.Print($"[Death] Playing animation: {_deathAnim}");
+			_animPlayer.Play(_deathAnim);
+			
+			// Wait for animation to finish before removing
+			try
+			{
+				float animationLength = (float)_animPlayer.GetAnimation(_deathAnim).Length;
+				GD.Print($"[Death] Animation length: {animationLength}s");
+				GetTree().CreateTimer(animationLength).Timeout += () => QueueFree();
+			}
+			catch (System.Exception e)
+			{
+				GD.PrintErr($"[Death] Error getting animation length: {e.Message}");
+				QueueFree();
+			}
+		}
+		else
+		{
+			GD.Print($"[Death] No death animation found. _animPlayer={_animPlayer != null}, _deathAnim='{_deathAnim}'");
+			QueueFree();
+		}
 	}
 
 	private void SpawnRespawnEnemies()

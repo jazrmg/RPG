@@ -3,7 +3,6 @@
 [ext_resource type="Script" uid="uid://cyy07s08m6fuk" path="res://Player3D.cs" id="1_o853b"]
 [ext_resource type="PackedScene" uid="uid://c5ul22l2ul2vb" path="res://models/player/Main_char.fbx" id="2_lkq30"]
 [ext_resource type="PackedScene" uid="uid://b2g5q2a5x57bp" path="res://Enemy.tscn" id="3_j7kei"]
-[ext_resource type="Script" uid="uid://bajthgk0kqoey" path="res://Enemy.cs" id="4_lkq30"]
 [ext_resource type="Texture2D" uid="uid://bsran7n8m1kxp" path="res://models/player/textures/antique_estoc_diff_1k.jpg" id="6_rby8v"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ib6rd"]
@@ -80,7 +79,7 @@ script = ExtResource("1_o853b")
 
 [node name="CharacterModel" parent="Player3D" unique_id=1427211851 instance=ExtResource("2_lkq30")]
 
-[node name="Skeleton3D" parent="Player3D/CharacterModel" index="0" unique_id=1066249162]
+[node name="Skeleton3D" parent="Player3D/CharacterModel" index="0" unique_id=1656184265]
 bones/1/rotation = Quaternion(-0.0364387, 0, 0, 0.99933594)
 bones/7/rotation = Quaternion(-0.55670947, -0.4336594, 0.5654678, -0.42691958)
 bones/8/rotation = Quaternion(-0.06686174, 0.0023221213, -0.03463149, 0.9971584)
@@ -125,7 +124,7 @@ bones/60/rotation = Quaternion(0.0013355288, -0.026240671, 0.9983626, 0.05081203
 bones/61/rotation = Quaternion(-0.03285739, 0.00021957909, -0.0066790334, 0.99943775)
 bones/62/rotation = Quaternion(0.5063422, 0.09256018, -0.05477697, 0.85559905)
 
-[node name="Ch44" parent="Player3D/CharacterModel/Skeleton3D" index="0" unique_id=867126335]
+[node name="Ch44" parent="Player3D/CharacterModel/Skeleton3D" index="0" unique_id=1621708089]
 transform = Transform3D(0.99914867, -0.037716087, -0.016713994, 0.03733108, 0.99904335, -0.022777217, 0.01755709, 0.022133863, 0.9996008, 0, 0, 0)
 
 [node name="RightHandAttachment" type="BoneAttachment3D" parent="Player3D/CharacterModel/Skeleton3D" index="1" unique_id=972552923]
@@ -178,7 +177,6 @@ size = Vector3(1, 0.5, 3)
 
 [node name="Enemy" parent="." unique_id=1622683073 instance=ExtResource("3_j7kei")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 2.2959146, 0)
-script = ExtResource("4_lkq30")
 
 [node name="HitBox" type="Area3D" parent="Enemy" unique_id=1781327960]
 
