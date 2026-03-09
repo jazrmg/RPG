@@ -103,6 +103,10 @@ public partial class Player3D : CharacterBody3D
 	private bool _isSitting = false;
 	private bool _isAttacking = false;
 	private float _attackCooldownTimer = 0.0f;
+	
+	// Game state
+	private bool _isGameOver = false;
+	private Control _gameOverUI = null;
 
 	// Physics state
 	private Vector3 _velocity = Vector3.Zero;
@@ -156,6 +160,14 @@ public partial class Player3D : CharacterBody3D
 
 	public override void _Input(InputEvent @event)
 	{
+		// Handle restart on Enter key when game is over
+		if (_isGameOver && @event.IsActionPressed("ui_accept"))
+		{
+			RestartGame();
+			GetTree().Root.SetInputAsHandled();
+			return;
+		}
+
 		if (@event is InputEventMouseMotion mouseMotion && Input.MouseMode == Input.MouseModeEnum.Captured)
 		{
 			_cameraYaw += Mathf.DegToRad(-mouseMotion.Relative.X * MouseSensitivity);
@@ -744,6 +756,8 @@ public partial class Player3D : CharacterBody3D
 
 	public void PlayerTakeDamage(float damage)
 	{
+		if (_isGameOver) return;  // Can't take damage if already dead
+
 		_playerHealth -= damage;
 		if (_playerHealth < 0.0f)
 			_playerHealth = 0.0f;
@@ -753,6 +767,24 @@ public partial class Player3D : CharacterBody3D
 
 		if (_playerHealthLabel != null)
 			_playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {MaxPlayerHealth:F0}";
+
+		// Apply knockback away from enemy to prevent getting stuck
+		Node3D enemy = GetTree().GetFirstNodeInGroup("enemy") as Node3D;
+		if (enemy != null)
+		{
+			Vector3 knockbackDir = (GlobalPosition - enemy.GlobalPosition).Normalized();
+			knockbackDir.Y = 0;  // Keep on ground plane
+			knockbackDir = knockbackDir.Normalized();
+			
+			_velocity.X += knockbackDir.X * 5.0f;  // Knockback force
+			_velocity.Z += knockbackDir.Z * 5.0f;
+		}
+
+		// Check for game over
+		if (_playerHealth <= 0.0f)
+		{
+			GameOver();
+		}
 	}
 
 	private void UpdateStamina(bool isRunning, float delta)
@@ -802,4 +834,84 @@ public partial class Player3D : CharacterBody3D
 	
 	public float GetPlayerHealth() => _playerHealth;
 	public bool IsPlayerAlive() => _playerHealth > 0.0f;
+
+	private void GameOver()
+	{
+		_isGameOver = true;
+		SetPhysicsProcess(false);
+		// Don't disable all input - we need to detect Enter key for restart!
+		// SetProcessInput(false);
+		
+		
+		ShowGameOverUI();
+	}
+
+	private void ShowGameOverUI()
+	{
+		// Create canvas layer for game over UI (add to scene, not root)
+		CanvasLayer canvasLayer = new CanvasLayer();
+		canvasLayer.Layer = 200;
+		AddChild(canvasLayer);  // Add to Player node instead of tree root
+
+		// Create dark background
+		ColorRect background = new ColorRect();
+		background.Color = new Color(0, 0, 0, 0.7f);
+		background.AnchorLeft = 0.0f;
+		background.AnchorTop = 0.0f;
+		background.AnchorRight = 1.0f;
+		background.AnchorBottom = 1.0f;
+		canvasLayer.AddChild(background);
+
+		// Create container for text and button
+		VBoxContainer container = new VBoxContainer();
+		container.AnchorLeft = 0.25f;
+		container.AnchorTop = 0.3f;
+		container.AnchorRight = 0.75f;
+		container.AnchorBottom = 0.7f;
+		container.Alignment = BoxContainer.AlignmentMode.Center;
+		canvasLayer.AddChild(container);
+
+		// Game Over title
+		Label titleLabel = new Label();
+		titleLabel.Text = "GAME OVER";
+		titleLabel.AddThemeColorOverride("font_color", Colors.Red);
+		titleLabel.AddThemeFontSizeOverride("font_size", 80);
+		container.AddChild(titleLabel);
+
+		// Health status
+		Label statusLabel = new Label();
+		statusLabel.Text = "You died!";
+		statusLabel.AddThemeColorOverride("font_color", Colors.White);
+		statusLabel.AddThemeFontSizeOverride("font_size", 40);
+		container.AddChild(statusLabel);
+
+		// Restart button
+		Button restartButton = new Button();
+		restartButton.Text = "Restart Game";
+		restartButton.CustomMinimumSize = new Vector2(300, 80);
+		restartButton.AddThemeFontSizeOverride("font_size", 32);
+		restartButton.Pressed += () => RestartGame();
+		container.AddChild(restartButton);
+
+		// Hint text
+		Label hintLabel = new Label();
+		hintLabel.Text = "or Press ENTER";
+		hintLabel.AddThemeColorOverride("font_color", Colors.Yellow);
+		hintLabel.AddThemeFontSizeOverride("font_size", 24);
+		container.AddChild(hintLabel);
+
+		_gameOverUI = container;
+	}
+
+	private void RestartGame()
+	{
+		// Clean up the UI before reloading
+		if (_gameOverUI != null && IsInstanceValid(_gameOverUI))
+		{
+			_gameOverUI.QueueFree();
+		}
+
+		// Reload the scene
+		GetTree().ReloadCurrentScene();
+	}
 }

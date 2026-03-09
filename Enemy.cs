@@ -8,17 +8,20 @@ public partial class Enemy : CharacterBody3D
 	[Export] public float Deceleration = 15.0f;
 	[Export] public float Friction = 0.90f;
 	[Export] public float ChaseRange = 20.0f;
-	[Export] public float StopDistance = 1.8f;
+	[Export] public float StopDistance = 2.5f;  // Increased from 1.8 to prevent overlap
 	[Export] public float RotationSpeed = 10.0f;
 	[Export] public float MaxHealth = 100.0f;
 	[Export] public float KnockbackResistance = 0.5f;
 	[Export] public float KnockbackDamping = 0.88f;
 	[Export] public float HealthBarHeightOffset = 2.5f;
 	[Export] public float SpawnInvulnerabilityTime = 0.5f;
+	[Export] public float DamageToPlayer = 10.0f;  // Damage per hit
+	[Export] public float AttackCooldown = 0.8f;  // Seconds between attacks (faster!)
 
 	private const string PlayerGroup = "player";
 	private const string HitboxPath = "HitBox";
 	private const string DeathFbxPath = "res://models/enemy/Flying Back Death.fbx";
+	private const string AttackFbxPath = "res://models/enemy/Zombie_Attack.fbx";
 
 	private readonly float _gravity = (float)ProjectSettings.GetSetting("physics/3d/default_gravity");
 
@@ -29,13 +32,16 @@ public partial class Enemy : CharacterBody3D
 	private CanvasLayer _healthBarCanvas;
 	private string _walkAnim = "";
 	private string _deathAnim = "";
+	private string _attackAnim = "";  // Attack animation
 	private bool _isWalking = false;
+	private bool _isAttacking = false;  // Track if currently attacking
 	private float _currentHealth;
 	private Vector3 _velocity = Vector3.Zero;
 	private Vector3 _knockbackVelocity = Vector3.Zero;
 	private float _invulnerabilityTimer = 0.0f;
 	private bool _isDead = false;
 	private bool _isInitialized = false;
+	private float _attackCooldownTimer = 0.0f;  // Attack cooldown
 
 	public override void _Ready()
 	{
@@ -57,6 +63,7 @@ public partial class Enemy : CharacterBody3D
 		{
 			_animPlayer.RootNode = _animPlayer.GetParent().GetPath();
 			_walkAnim = ResolveWalkAnimation(_animPlayer);
+			_attackAnim = LoadAttackAnimation();  // Load attack animation
 			
 			// Death animation disabled - will implement differently later
 			// SetupDeathAnimation();
@@ -138,6 +145,15 @@ public partial class Enemy : CharacterBody3D
 		_velocity.X = horizontalVelocity.X;
 		_velocity.Z = horizontalVelocity.Z;
 
+		// Update attack cooldown
+		_attackCooldownTimer -= dt;
+
+		// Check if close enough to damage player
+		if (_player != null && distance <= StopDistance && _attackCooldownTimer <= 0.0f)
+		{
+			DamagePlayerIfClose();
+		}
+
 		Velocity = _velocity;
 		MoveAndSlide();
 		UpdateHealthBarPosition();
@@ -179,6 +195,9 @@ public partial class Enemy : CharacterBody3D
 
 	private void SetWalking(bool walking)
 	{
+		// Don't change animation while attacking
+		if (_isAttacking) return;
+
 		if (_isWalking == walking) return;
 		_isWalking = walking;
 
@@ -221,6 +240,49 @@ public partial class Enemy : CharacterBody3D
 		return "";
 	}
 
+	private string LoadAttackAnimation()
+	{
+		if (_animPlayer == null) return "";
+
+		try
+		{
+			// Load attack animation from FBX
+			Animation attackAnimation = ExtractAnimationFromFbx(AttackFbxPath, false);
+			
+			if (attackAnimation == null)
+			{
+				return "";
+			}
+
+			// Create or get the animation library
+			AnimationLibrary library = null;
+			try
+			{
+				library = _animPlayer.GetAnimationLibrary("EnemyAnims");
+			}
+			catch
+			{
+				library = null;
+			}
+
+			if (library == null)
+			{
+				library = new AnimationLibrary();
+				_animPlayer.AddAnimationLibrary("EnemyAnims", library);
+			}
+
+			// Add attack animation to library
+			library.AddAnimation("Attack", attackAnimation);
+			string attackAnimPath = "EnemyAnims/Attack";
+			
+			return attackAnimPath;
+		}
+		catch (System.Exception e)
+		{
+			return "";
+		}
+	}
+
 	private void SetupDeathAnimation()
 	{
 		if (_animPlayer == null) return;
@@ -230,7 +292,6 @@ public partial class Enemy : CharacterBody3D
 		
 		if (deathAnimation == null)
 		{
-			GD.PrintErr("[Death] Failed to load death animation from Flying Back Death.fbx");
 			return;
 		}
 
@@ -255,8 +316,6 @@ public partial class Enemy : CharacterBody3D
 		// Add death animation to library
 		library.AddAnimation("Death", deathAnimation);
 		_deathAnim = "EnemyAnims/Death";
-		
-		GD.Print("[Death] Death animation loaded: " + _deathAnim);
 	}
 
 	private Animation ExtractAnimationFromFbx(string fbxPath, bool loop)
@@ -287,7 +346,6 @@ public partial class Enemy : CharacterBody3D
 			if (library.HasAnimation("mixamo_com"))
 			{
 				foundAnimation = (Animation)library.GetAnimation("mixamo_com").Duplicate();
-				GD.Print($"[ANIM_LOAD] Found mixamo_com in {fbxPath}");
 				break;
 			}
 		}
@@ -303,7 +361,6 @@ public partial class Enemy : CharacterBody3D
 					if (animName != "Take 001")
 					{
 						foundAnimation = (Animation)library.GetAnimation(animName).Duplicate();
-						GD.Print($"[ANIM_LOAD] Using animation '{animName}' from {fbxPath}");
 						break;
 					}
 				}
@@ -506,6 +563,94 @@ public partial class Enemy : CharacterBody3D
 	public void SetInvulnerabilityTimer(float time)
 	{
 		_invulnerabilityTimer = time;
+	}
+
+	private void DamagePlayerIfClose()
+	{
+		if (_player is not Player3D player)
+			return;
+
+		if (!IsInstanceValid(player))
+			return;
+
+		// Prevent multiple attacks during cooldown
+		if (_isAttacking)
+			return;
+
+		_isAttacking = true;
+
+		// Record the initial distance when attack starts
+		Vector3 attackStartPosition = _player.GlobalPosition;
+		float initialDistance = (_player.GlobalPosition - GlobalPosition).Length();
+
+		// Stop walk animation IMMEDIATELY before attack
+		if (_animPlayer != null)
+		{
+			_animPlayer.Stop();  // Stop any current animation
+		}
+
+		// Play attack animation FIRST
+		if (_animPlayer != null && !string.IsNullOrEmpty(_attackAnim))
+		{
+			try
+			{
+				_animPlayer.Play(_attackAnim);
+				_animPlayer.SpeedScale = 1.5f;  // Speed up animation by 1.5x
+
+				// Get animation duration to wait for it to complete
+				Animation attackAnimation = _animPlayer.GetAnimation(_attackAnim);
+				if (attackAnimation != null)
+				{
+					float animDuration = (float)attackAnimation.Length / 1.5f;  // Account for speed scale
+					
+					// Apply damage EARLY in the animation (at 30% - faster hit)
+					float damageDelay = animDuration * 0.3f;
+					GetTree().CreateTimer(damageDelay).Timeout += () =>
+					{
+						if (IsInstanceValid(player) && IsInstanceValid(_player))
+						{
+							// Check current distance - MUST be close!
+							Vector3 currentPosition = _player.GlobalPosition;
+							float currentDistance = (currentPosition - GlobalPosition).Length();
+							
+							// Only damage if player is STILL close (within attack range)
+							// Strict check - must be at original attack distance!
+							if (currentDistance <= StopDistance + 0.3f)
+							{
+								player.PlayerTakeDamage(DamageToPlayer);
+							}
+							else
+							{
+							}
+						}
+					};
+
+					// After animation completes, resume walking
+					GetTree().CreateTimer(animDuration + 0.1f).Timeout += () =>
+					{
+						if (IsInstanceValid(this))
+						{
+							_animPlayer.SpeedScale = 1.0f;  // Reset speed
+							_isAttacking = false;  // Allow next attack
+							_isWalking = false;  // Force SetWalking to update on next frame
+						}
+					};
+
+					// Reset attack cooldown based on animation length (tighter)
+					_attackCooldownTimer = animDuration + 0.2f;
+				}
+			}
+			catch (System.Exception e)
+			{
+				_animPlayer.SpeedScale = 1.0f;
+				_isAttacking = false;
+				_isWalking = false;
+			}
+		}
+		else
+		{
+			_isAttacking = false;
+		}
 	}
 
 	public bool IsAlive => _currentHealth > 0.0f;
