@@ -92,7 +92,7 @@ public partial class Player3D : CharacterBody3D
 	private bool _isJumping = false;
 
 	// Attack tracking
-	private HashSet<Area3D> _hitEnemiesThisAttack = new HashSet<Area3D>();
+	private HashSet<Enemy> _hitEnemiesThisAttack = new HashSet<Enemy>();
 
 	// Camera rig
 	private float _cameraYaw;
@@ -109,7 +109,6 @@ public partial class Player3D : CharacterBody3D
 
 		if (_springArm == null || _camera == null || _animPlayer == null)
 		{
-			GD.PrintErr("Player3D: Missing one or more required nodes.");
 			SetPhysicsProcess(false);
 			SetProcessInput(false);
 			return;
@@ -354,7 +353,6 @@ public partial class Player3D : CharacterBody3D
 		Animation animation = ExtractAnimation(fbxPath, loop);
 		if (animation == null)
 		{
-			GD.PrintErr($"Player3D: Failed to load animation from '{fbxPath}'.");
 			return "";
 		}
 
@@ -367,7 +365,6 @@ public partial class Player3D : CharacterBody3D
 		PackedScene scene = GD.Load<PackedScene>(fbxPath);
 		if (scene == null)
 		{
-			GD.PrintErr($"Player3D: Could not load scene '{fbxPath}'.");
 			return null;
 		}
 
@@ -376,7 +373,6 @@ public partial class Player3D : CharacterBody3D
 
 		if (importedAnimPlayer == null)
 		{
-			GD.PrintErr($"Player3D: No AnimationPlayer found in '{fbxPath}'.");
 			instance.QueueFree();
 			return null;
 		}
@@ -397,7 +393,6 @@ public partial class Player3D : CharacterBody3D
 
 		if (foundAnimation == null)
 		{
-			GD.PrintErr($"Player3D: No 'mixamo_com' animation found in '{fbxPath}'.");
 			return null;
 		}
 
@@ -491,7 +486,13 @@ public partial class Player3D : CharacterBody3D
 		if (!Input.IsActionJustPressed("attack"))
 			return;
 
-		if (!IsOnFloor() || !_isSwordEquipped || _isSitting)
+		if (!IsOnFloor())
+			return;
+
+		if (!_isSwordEquipped)
+			return;
+
+		if (_isSitting)
 			return;
 
 		if (_attackCooldownTimer > 0.0f)
@@ -505,9 +506,11 @@ public partial class Player3D : CharacterBody3D
 
 	private void CheckAttackHits()
 	{
-		// Get all areas overlapping with the sword
+		// Get all colliders overlapping with the sword
 		if (_swordRoot == null)
+		{
 			return;
+		}
 
 		var space = GetWorld3D().DirectSpaceState;
 		var query = new PhysicsShapeQueryParameters3D();
@@ -519,25 +522,20 @@ public partial class Player3D : CharacterBody3D
 		foreach (var result in results)
 		{
 			var collider = (Node)result["collider"];
-			var area = collider as Area3D;
 			
-			if (area != null && area.IsInGroup("enemy_hitbox"))
+			// Check if the collider IS an Enemy
+			if (collider is Enemy enemy)
 			{
-				// Get the parent enemy
-				Node3D parent = area.GetParent() as Node3D;
-				if (parent != null && parent is Enemy enemy)
+				// Only hit each enemy once per attack
+				if (!_hitEnemiesThisAttack.Contains(enemy))
 				{
-					// Only hit each enemy once per attack
-					if (!_hitEnemiesThisAttack.Contains(area))
-					{
-						_hitEnemiesThisAttack.Add(area);
-						
-						Vector3 knockbackDir = (enemy.GlobalPosition - GlobalPosition).Normalized();
-						knockbackDir.Y = 0;
-						knockbackDir = knockbackDir.Normalized();
-						
-						enemy.TakeDamage(SlashDamage, knockbackDir, SlashKnockback);
-					}
+					_hitEnemiesThisAttack.Add(enemy);
+					
+					Vector3 knockbackDir = (enemy.GlobalPosition - GlobalPosition).Normalized();
+					knockbackDir.Y = 0;
+					knockbackDir = knockbackDir.Normalized();
+					
+					enemy.TakeDamage(SlashDamage, knockbackDir, SlashKnockback);
 				}
 			}
 		}

@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 public partial class Enemy : CharacterBody3D
 {
@@ -7,12 +8,12 @@ public partial class Enemy : CharacterBody3D
 	[Export] public float StopDistance = 1.5f;
 	[Export] public float RotationSpeed = 8.0f;
 	[Export] public float GroundDeceleration = 12.0f;
-	
 	[Export] public float MaxHealth = 100.0f;
 	[Export] public float KnockbackResistance = 0.5f;
+	[Export] public float HealthBarHeightOffset = 2.5f;
+	[Export] public float SpawnInvulnerabilityTime = 0.5f;
 
 	private const string PlayerGroup = "player";
-	private const string MonsterModelPath = "MonsterModel";
 	private const string HitboxPath = "HitBox";
 
 	private readonly float _gravity = (float)ProjectSettings.GetSetting("physics/3d/default_gravity");
@@ -20,51 +21,64 @@ public partial class Enemy : CharacterBody3D
 	private AnimationPlayer _animPlayer;
 	private Node3D _player;
 	private Area3D _hitBox;
-
+	private ProgressBar _healthBar;
+	private CanvasLayer _healthBarCanvas;
 	private string _walkAnim = "";
 	private bool _isWalking = false;
-	
 	private float _currentHealth;
 	private Vector3 _knockbackVelocity = Vector3.Zero;
 	private float _knockbackDamping = 0.9f;
+	private float _invulnerabilityTimer = 0.0f;
+	private bool _isDead = false;
+	private bool _isInitialized = false;
 
 	public override void _Ready()
 	{
-		Node monsterModel = GetNodeOrNull<Node>(MonsterModelPath);
-		if (monsterModel == null)
-		{
-			GD.PrintErr("Enemy: MonsterModel node not found.");
-			SetPhysicsProcess(false);
-			return;
-		}
+		SetupEnemy();
+	}
 
-		_animPlayer = FindAnimationPlayer(monsterModel);
+	private void SetupEnemy()
+	{
+		if (_isInitialized) return;
+
+		// Find AnimationPlayer
+		_animPlayer = GetNodeOrNull<AnimationPlayer>("AnimationPlayer");
 		if (_animPlayer == null)
 		{
-			GD.PrintErr("Enemy: AnimationPlayer not found.");
+			_animPlayer = FindAnimationPlayer(this);
 		}
-		else
+
+		if (_animPlayer != null)
 		{
 			_animPlayer.RootNode = _animPlayer.GetParent().GetPath();
 			_walkAnim = ResolveWalkAnimation(_animPlayer);
 		}
 
+		// Find HitBox
 		_hitBox = GetNodeOrNull<Area3D>(HitboxPath);
-		if (_hitBox == null)
-		{
-			GD.PrintErr("Enemy: HitBox node not found at 'HitBox'. Add an Area3D child node with this name.");
-		}
 
+		// Create health bar
+		CreateHealthBar();
+
+		// Initialize health
 		_currentHealth = MaxHealth;
+		UpdateHealthBar();
+
+		// Resolve player
 		ResolvePlayer();
+
+		_isInitialized = true;
+		SetPhysicsProcess(true);
 	}
 
 	public override void _PhysicsProcess(double delta)
 	{
-		float dt = (float)delta;
+		if (_isDead || !_isInitialized) return;
 
-		if (!ResolvePlayer())
-			return;
+		float dt = (float)delta;
+		_invulnerabilityTimer -= dt;
+
+		if (!ResolvePlayer()) return;
 
 		Vector3 velocity = Velocity;
 		ApplyGravity(ref velocity, dt);
@@ -78,7 +92,6 @@ public partial class Enemy : CharacterBody3D
 		if (shouldChase && !toPlayer.IsZeroApprox())
 		{
 			Vector3 direction = toPlayer.Normalized();
-
 			velocity.X = direction.X * Speed;
 			velocity.Z = direction.Z * Speed;
 
@@ -90,10 +103,7 @@ public partial class Enemy : CharacterBody3D
 			velocity.X = Mathf.MoveToward(velocity.X, 0.0f, GroundDeceleration * dt);
 			velocity.Z = Mathf.MoveToward(velocity.Z, 0.0f, GroundDeceleration * dt);
 
-			bool stillMoving =
-				Mathf.Abs(velocity.X) > 0.01f ||
-				Mathf.Abs(velocity.Z) > 0.01f;
-
+			bool stillMoving = Mathf.Abs(velocity.X) > 0.01f || Mathf.Abs(velocity.Z) > 0.01f;
 			SetWalking(stillMoving);
 		}
 
@@ -109,15 +119,14 @@ public partial class Enemy : CharacterBody3D
 
 		Velocity = velocity;
 		MoveAndSlide();
+		UpdateHealthBarPosition();
 	}
 
 	private bool ResolvePlayer()
 	{
-		if (IsInstanceValid(_player))
-			return true;
+		if (IsInstanceValid(_player)) return true;
 
 		_player = GetTree().GetFirstNodeInGroup(PlayerGroup) as Node3D;
-
 		if (_player == null)
 		{
 			_player = GetTree().Root.FindChild("Player3D", true, false) as Node3D;
@@ -136,8 +145,7 @@ public partial class Enemy : CharacterBody3D
 
 	private void RotateTowardDirection(Vector3 direction, float delta)
 	{
-		if (direction == Vector3.Zero)
-			return;
+		if (direction == Vector3.Zero) return;
 
 		float targetYaw = Mathf.Atan2(direction.X, direction.Z);
 		float t = Mathf.Clamp(RotationSpeed * delta, 0.0f, 1.0f);
@@ -151,13 +159,10 @@ public partial class Enemy : CharacterBody3D
 
 	private void SetWalking(bool walking)
 	{
-		if (_isWalking == walking)
-			return;
-
+		if (_isWalking == walking) return;
 		_isWalking = walking;
 
-		if (_animPlayer == null || string.IsNullOrEmpty(_walkAnim))
-			return;
+		if (_animPlayer == null || string.IsNullOrEmpty(_walkAnim)) return;
 
 		if (walking)
 			_animPlayer.Play(_walkAnim);
@@ -185,8 +190,7 @@ public partial class Enemy : CharacterBody3D
 
 			foreach (string animationName in library.GetAnimationList())
 			{
-				if (animationName == "Take 001")
-					continue;
+				if (animationName == "Take 001") continue;
 
 				Animation animation = library.GetAnimation(animationName);
 				animation.LoopMode = Animation.LoopModeEnum.Linear;
@@ -194,7 +198,6 @@ public partial class Enemy : CharacterBody3D
 			}
 		}
 
-		GD.PrintErr("Enemy: No usable walk animation found.");
 		return "";
 	}
 
@@ -213,28 +216,162 @@ public partial class Enemy : CharacterBody3D
 		return null;
 	}
 
+	private void CreateHealthBar()
+	{
+		_healthBarCanvas = new CanvasLayer();
+		_healthBarCanvas.Name = "HealthBarCanvas";
+		_healthBarCanvas.Layer = 10;
+		AddChild(_healthBarCanvas);
+
+		Control control = new Control();
+		control.Name = "HealthBarContainer";
+		control.AnchorLeft = 0.5f;
+		control.AnchorTop = 0.0f;
+		control.AnchorRight = 0.5f;
+		control.AnchorBottom = 0.0f;
+		control.OffsetLeft = -40;
+		control.OffsetTop = 0;
+		control.OffsetRight = 40;
+		control.OffsetBottom = 20;
+		_healthBarCanvas.AddChild(control);
+
+		_healthBar = new ProgressBar();
+		_healthBar.Name = "HealthBar";
+		_healthBar.MinValue = 0.0f;
+		_healthBar.MaxValue = MaxHealth;
+		_healthBar.Value = MaxHealth;
+		_healthBar.AnchorLeft = 0.0f;
+		_healthBar.AnchorTop = 0.0f;
+		_healthBar.AnchorRight = 1.0f;
+		_healthBar.AnchorBottom = 1.0f;
+		_healthBar.OffsetLeft = 0;
+		_healthBar.OffsetTop = 0;
+		_healthBar.OffsetRight = 0;
+		_healthBar.OffsetBottom = 0;
+
+		StyleBox styleBoxBackground = new StyleBoxFlat();
+		((StyleBoxFlat)styleBoxBackground).BgColor = new Color(0.2f, 0.2f, 0.2f, 0.9f);
+		_healthBar.AddThemeStyleboxOverride("background", styleBoxBackground);
+
+		StyleBox styleBoxFill = new StyleBoxFlat();
+		((StyleBoxFlat)styleBoxFill).BgColor = new Color(0.2f, 0.8f, 0.2f, 0.9f);
+		_healthBar.AddThemeStyleboxOverride("fill", styleBoxFill);
+
+		control.AddChild(_healthBar);
+	}
+
+	private void UpdateHealthBar()
+	{
+		if (_healthBar != null)
+		{
+			_healthBar.MaxValue = MaxHealth;
+			_healthBar.Value = Mathf.Max(0, _currentHealth);
+		}
+	}
+
+	private void UpdateHealthBarPosition()
+	{
+		if (_healthBarCanvas == null) return;
+
+		Camera3D camera = GetViewport().GetCamera3D();
+		if (camera == null) return;
+
+		Vector3 worldPos = GlobalPosition + Vector3.Up * HealthBarHeightOffset;
+		Vector2 screenPos = camera.UnprojectPosition(worldPos);
+
+		Control container = _healthBarCanvas.GetChild(0) as Control;
+		if (container != null)
+		{
+			container.GlobalPosition = screenPos - new Vector2(40, 0);
+		}
+	}
+
 	public void TakeDamage(float damage, Vector3 knockbackDirection, float knockbackForce)
 	{
-		_currentHealth -= damage;
-		
-		// Apply knockback
-		_knockbackVelocity = knockbackDirection.Normalized() * knockbackForce * KnockbackResistance;
+		if (_isDead || _invulnerabilityTimer > 0.0f) return;
 
-		GD.Print($"Enemy hit! Health: {_currentHealth}/{MaxHealth}");
+		_currentHealth -= damage;
+		UpdateHealthBar();
+
+		_knockbackVelocity = knockbackDirection.Normalized() * knockbackForce * KnockbackResistance;
 
 		if (_currentHealth <= 0.0f)
 		{
+			_isDead = true;
 			Die();
 		}
 	}
 
 	private void Die()
 	{
-		GD.Print("Enemy died!");
+		SpawnRespawnEnemies();
 		QueueFree();
 	}
 
-	public bool IsAlive => _currentHealth > 0.0f;
+	private void SpawnRespawnEnemies()
+	{
+		Node parent = GetParent();
+		if (parent == null) return;
 
+		string scenePath = GetSceneFilePath();
+		if (string.IsNullOrEmpty(scenePath)) return;
+
+		PackedScene enemyScene = GD.Load<PackedScene>(scenePath);
+		if (enemyScene == null) return;
+
+		Vector3 spawnOffset1 = GlobalPosition + new Vector3(3, 0, 0);
+		Vector3 spawnOffset2 = GlobalPosition + new Vector3(-3, 0, 0);
+
+		// Spawn enemy 1
+		try
+		{
+			Node spawnedNode1 = enemyScene.Instantiate();
+			parent.AddChild(spawnedNode1);
+			spawnedNode1.Set("global_position", spawnOffset1);
+
+			// Check if _Ready was called
+			ProgressBar healthBar = GetNodeOrNull<ProgressBar>($"{spawnedNode1.Name}/HealthBarCanvas/HealthBarContainer/HealthBar");
+			if (healthBar == null)
+			{
+				// _Ready wasn't called, manually call SetupEnemy
+				spawnedNode1.CallDeferred("SetupEnemy");
+			}
+
+			spawnedNode1.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
+		}
+		catch (System.Exception e)
+		{
+			GD.PrintErr($"Error spawning enemy 1: {e.Message}");
+		}
+
+		// Spawn enemy 2
+		try
+		{
+			Node spawnedNode2 = enemyScene.Instantiate();
+			parent.AddChild(spawnedNode2);
+			spawnedNode2.Set("global_position", spawnOffset2);
+
+			// Check if _Ready was called
+			ProgressBar healthBar2 = GetNodeOrNull<ProgressBar>($"{spawnedNode2.Name}/HealthBarCanvas/HealthBarContainer/HealthBar");
+			if (healthBar2 == null)
+			{
+				// _Ready wasn't called, manually call SetupEnemy
+				spawnedNode2.CallDeferred("SetupEnemy");
+			}
+
+			spawnedNode2.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
+		}
+		catch (System.Exception e)
+		{
+			GD.PrintErr($"Error spawning enemy 2: {e.Message}");
+		}
+	}
+
+	public void SetInvulnerabilityTimer(float time)
+	{
+		_invulnerabilityTimer = time;
+	}
+
+	public bool IsAlive => _currentHealth > 0.0f;
 	public Area3D GetHitBox => _hitBox;
 }

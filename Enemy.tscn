@@ -1,11 +1,13 @@
 [gd_scene format=3 uid="uid://b2g5q2a5x57bp"]
 
+[ext_resource type="Script" uid="uid://bajthgk0kqoey" path="res://Enemy.cs" id="1_s7bn3"]
 [ext_resource type="PackedScene" uid="uid://ckgn73uvytq5a" path="res://models/enemy/MonsterWalk.fbx" id="1_tt7e2"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_2vx13"]
 height = 1.934082
 
 [node name="Enemy" type="CharacterBody3D" unique_id=1622683073]
+script = ExtResource("1_s7bn3")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=191392584]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.009101391, 1.0007324, 0)

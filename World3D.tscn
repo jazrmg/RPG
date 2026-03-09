@@ -66,8 +66,8 @@ ambient_light_source = 3
 [sub_resource type="NavigationMesh" id="NavigationMesh_lkq30"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_2vx13"]
-radius = 0.65234375
-height = 1.7539063
+radius = 0.92041016
+height = 2.1535645
 
 [node name="World3D" type="Node3D" unique_id=1310688496]
 
@@ -183,7 +183,7 @@ script = ExtResource("4_lkq30")
 [node name="HitBox" type="Area3D" parent="Enemy" unique_id=1781327960]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Enemy/HitBox" unique_id=1711540048]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6278496, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.76444626, 0)
 shape = SubResource("CapsuleShape3D_2vx13")
 
 [editable path="Player3D/CharacterModel"]
