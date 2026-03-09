@@ -9,6 +9,7 @@ public partial class Player3D : CharacterBody3D
 
 	private float _gravity = (float)ProjectSettings.GetSetting("physics/3d/default_gravity");
 	private Camera3D _camera;
+	private SpringArm3D _springArm;
 	private AnimationPlayer _animPlayer;
 
 	private string _idleAnim = "";
@@ -20,7 +21,8 @@ public partial class Player3D : CharacterBody3D
 
 	public override void _Ready()
 	{
-		_camera = GetNode<Camera3D>("Camera3D");
+		_springArm = GetNode<SpringArm3D>("SpringArm3D");
+		_camera = GetNode<Camera3D>("SpringArm3D/Camera3D");
 		_animPlayer = GetNode<AnimationPlayer>("CharacterModel/AnimationPlayer");
 
 		Input.MouseMode = Input.MouseModeEnum.Captured;
@@ -28,7 +30,7 @@ public partial class Player3D : CharacterBody3D
 		// Force root node to CharacterModel.
 		_animPlayer.RootNode = _animPlayer.GetParent().GetPath();
 
-		// Find the idle animation name by checking what's available.
+		// Print what's available in the model.
 		foreach (var libName in _animPlayer.GetAnimationLibraryList())
 		{
 			var lib = _animPlayer.GetAnimationLibrary(libName);
@@ -36,22 +38,24 @@ public partial class Player3D : CharacterBody3D
 			{
 				string fullName = libName == "" ? animName : $"{libName}/{animName}";
 				GD.Print($"Available: '{fullName}'");
-
-				// Skip "Take 001" — that's the T-pose.
-				if (animName != "Take 001")
-				{
-					_idleAnim = fullName;
-					// Make idle loop.
-					var idleAnim = lib.GetAnimation(animName);
-					idleAnim.LoopMode = Animation.LoopModeEnum.Linear;
-				}
 			}
 		}
 
-		// Create custom library for walk, run, jump, and sit.
+		// Create custom library for all animations.
 		var customLibrary = new AnimationLibrary();
 		_animPlayer.AddAnimationLibrary("Custom", customLibrary);
 
+		// Load idle animation from Idle.fbx.
+		var idleAnim = ExtractAnimation("res://models/player/Idle.fbx");
+		if (idleAnim != null)
+		{
+			idleAnim.LoopMode = Animation.LoopModeEnum.Linear;
+			customLibrary.AddAnimation("Idle", idleAnim);
+			_idleAnim = "Custom/Idle";
+			GD.Print("Idle animation loaded!");
+		}
+
+		// Load walking animation.
 		var walkAnim = ExtractAnimation("res://models/player/Walking.fbx");
 		if (walkAnim != null)
 		{
@@ -60,6 +64,7 @@ public partial class Player3D : CharacterBody3D
 			GD.Print("Walking animation loaded!");
 		}
 
+		// Load running animation.
 		var runAnim = ExtractAnimation("res://models/player/Running.fbx");
 		if (runAnim != null)
 		{
@@ -68,16 +73,17 @@ public partial class Player3D : CharacterBody3D
 			GD.Print("Running animation loaded!");
 		}
 
+		// Load jump animation.
 		var jumpAnim = ExtractAnimation("res://models/player/Jump.fbx");
 		if (jumpAnim != null)
 		{
-			// Don't loop jump — it should play once.
 			jumpAnim.LoopMode = Animation.LoopModeEnum.None;
 			customLibrary.AddAnimation("Jump", jumpAnim);
 			_jumpAnim = "Custom/Jump";
 			GD.Print("Jump animation loaded!");
 		}
 
+		// Load sitting animation.
 		var sitAnim = ExtractAnimation("res://models/player/Sitting Idle.fbx");
 		if (sitAnim != null)
 		{
@@ -107,7 +113,9 @@ public partial class Player3D : CharacterBody3D
 		}
 
 		var instance = scene.Instantiate();
-		var otherAnimPlayer = instance.GetNode<AnimationPlayer>("AnimationPlayer");
+
+		// Search for AnimationPlayer anywhere in the scene.
+		var otherAnimPlayer = FindAnimationPlayer(instance);
 		if (otherAnimPlayer == null)
 		{
 			GD.PrintErr($"No AnimationPlayer in: {fbxPath}");
@@ -128,8 +136,7 @@ public partial class Player3D : CharacterBody3D
 
 		instance.QueueFree();
 
-		// Remove root motion — strip the Hips POSITION track so the
-		// character doesn't drift away from the Player3D node.
+		// Remove root motion — strip the Hips POSITION track.
 		if (foundAnim != null)
 		{
 			for (int i = foundAnim.GetTrackCount() - 1; i >= 0; i--)
@@ -150,17 +157,34 @@ public partial class Player3D : CharacterBody3D
 		return foundAnim;
 	}
 
+	private AnimationPlayer FindAnimationPlayer(Node node)
+	{
+		if (node is AnimationPlayer ap)
+			return ap;
+
+		foreach (var child in node.GetChildren())
+		{
+			var found = FindAnimationPlayer(child);
+			if (found != null)
+				return found;
+		}
+
+		return null;
+	}
+
 	public override void _Input(InputEvent @event)
 	{
 		if (@event is InputEventMouseMotion mouseMotion)
 		{
+			// Horizontal mouse rotates the player.
 			RotateY(Mathf.DegToRad(-mouseMotion.Relative.X * MouseSensitivity));
 
-			_camera.RotateX(Mathf.DegToRad(-mouseMotion.Relative.Y * MouseSensitivity));
+			// Vertical mouse rotates the spring arm up/down.
+			_springArm.RotateX(Mathf.DegToRad(-mouseMotion.Relative.Y * MouseSensitivity));
 
-			Vector3 cameraRotation = _camera.Rotation;
-			cameraRotation.X = Mathf.Clamp(cameraRotation.X, Mathf.DegToRad(-80), Mathf.DegToRad(80));
-			_camera.Rotation = cameraRotation;
+			Vector3 armRotation = _springArm.Rotation;
+			armRotation.X = Mathf.Clamp(armRotation.X, Mathf.DegToRad(-60), Mathf.DegToRad(30));
+			_springArm.Rotation = armRotation;
 		}
 
 		if (@event.IsActionPressed("ui_cancel"))
@@ -194,7 +218,6 @@ public partial class Player3D : CharacterBody3D
 		{
 			if (_currentState == "sit")
 			{
-				// Stand back up.
 				_animPlayer.Play(_idleAnim);
 				_currentState = "idle";
 			}
