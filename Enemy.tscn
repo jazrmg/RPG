@@ -14,7 +14,6 @@ shape = SubResource("CapsuleShape3D_2vx13")
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="." unique_id=1736342605]
 
 [node name="MonsterModel" parent="." unique_id=1265631801 instance=ExtResource("1_tt7e2")]
-transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 0)
 
 [node name="Skeleton3D" parent="MonsterModel" index="0" unique_id=890559622]
 bones/0/position = Vector3(0.0004387519, 0.78210664, -0.0022001788)

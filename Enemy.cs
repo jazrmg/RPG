@@ -2,49 +2,210 @@ using Godot;
 
 public partial class Enemy : CharacterBody3D
 {
-	[Export] public float Speed = 1.0f;
+	[Export] public float Speed = 1.5f;
 	[Export] public float ChaseRange = 20.0f;
+	[Export] public float StopDistance = 1.5f;
+	[Export] public float RotationSpeed = 8.0f;
+	[Export] public float GroundDeceleration = 12.0f;
+	
+	[Export] public float MaxHealth = 100.0f;
+	[Export] public float KnockbackResistance = 0.5f;
 
-	private float _gravity = (float)ProjectSettings.GetSetting("physics/3d/default_gravity");
+	private const string PlayerGroup = "player";
+	private const string MonsterModelPath = "MonsterModel";
+	private const string HitboxPath = "HitBox";
+
+	private readonly float _gravity = (float)ProjectSettings.GetSetting("physics/3d/default_gravity");
+
 	private AnimationPlayer _animPlayer;
 	private Node3D _player;
+	private Area3D _hitBox;
 
 	private string _walkAnim = "";
 	private bool _isWalking = false;
+	
+	private float _currentHealth;
+	private Vector3 _knockbackVelocity = Vector3.Zero;
+	private float _knockbackDamping = 0.9f;
 
 	public override void _Ready()
 	{
-		_animPlayer = FindAnimationPlayer(GetNode("MonsterModel"));
+		Node monsterModel = GetNodeOrNull<Node>(MonsterModelPath);
+		if (monsterModel == null)
+		{
+			GD.PrintErr("Enemy: MonsterModel node not found.");
+			SetPhysicsProcess(false);
+			return;
+		}
 
-		if (_animPlayer != null)
+		_animPlayer = FindAnimationPlayer(monsterModel);
+		if (_animPlayer == null)
+		{
+			GD.PrintErr("Enemy: AnimationPlayer not found.");
+		}
+		else
 		{
 			_animPlayer.RootNode = _animPlayer.GetParent().GetPath();
+			_walkAnim = ResolveWalkAnimation(_animPlayer);
+		}
 
-			foreach (var libName in _animPlayer.GetAnimationLibraryList())
+		_hitBox = GetNodeOrNull<Area3D>(HitboxPath);
+		if (_hitBox == null)
+		{
+			GD.PrintErr("Enemy: HitBox node not found at 'HitBox'. Add an Area3D child node with this name.");
+		}
+
+		_currentHealth = MaxHealth;
+		ResolvePlayer();
+	}
+
+	public override void _PhysicsProcess(double delta)
+	{
+		float dt = (float)delta;
+
+		if (!ResolvePlayer())
+			return;
+
+		Vector3 velocity = Velocity;
+		ApplyGravity(ref velocity, dt);
+
+		Vector3 toPlayer = _player.GlobalPosition - GlobalPosition;
+		toPlayer.Y = 0.0f;
+
+		float distance = toPlayer.Length();
+		bool shouldChase = distance <= ChaseRange && distance > StopDistance;
+
+		if (shouldChase && !toPlayer.IsZeroApprox())
+		{
+			Vector3 direction = toPlayer.Normalized();
+
+			velocity.X = direction.X * Speed;
+			velocity.Z = direction.Z * Speed;
+
+			RotateTowardDirection(direction, dt);
+			SetWalking(true);
+		}
+		else
+		{
+			velocity.X = Mathf.MoveToward(velocity.X, 0.0f, GroundDeceleration * dt);
+			velocity.Z = Mathf.MoveToward(velocity.Z, 0.0f, GroundDeceleration * dt);
+
+			bool stillMoving =
+				Mathf.Abs(velocity.X) > 0.01f ||
+				Mathf.Abs(velocity.Z) > 0.01f;
+
+			SetWalking(stillMoving);
+		}
+
+		// Apply knockback
+		velocity.X += _knockbackVelocity.X;
+		velocity.Z += _knockbackVelocity.Z;
+		_knockbackVelocity *= _knockbackDamping;
+
+		if (_knockbackVelocity.Length() < 0.1f)
+		{
+			_knockbackVelocity = Vector3.Zero;
+		}
+
+		Velocity = velocity;
+		MoveAndSlide();
+	}
+
+	private bool ResolvePlayer()
+	{
+		if (IsInstanceValid(_player))
+			return true;
+
+		_player = GetTree().GetFirstNodeInGroup(PlayerGroup) as Node3D;
+
+		if (_player == null)
+		{
+			_player = GetTree().Root.FindChild("Player3D", true, false) as Node3D;
+		}
+
+		return _player != null;
+	}
+
+	private void ApplyGravity(ref Vector3 velocity, float delta)
+	{
+		if (!IsOnFloor())
+		{
+			velocity.Y -= _gravity * delta;
+		}
+	}
+
+	private void RotateTowardDirection(Vector3 direction, float delta)
+	{
+		if (direction == Vector3.Zero)
+			return;
+
+		float targetYaw = Mathf.Atan2(direction.X, direction.Z);
+		float t = Mathf.Clamp(RotationSpeed * delta, 0.0f, 1.0f);
+
+		Rotation = new Vector3(
+			Rotation.X,
+			Mathf.LerpAngle(Rotation.Y, targetYaw, t),
+			Rotation.Z
+		);
+	}
+
+	private void SetWalking(bool walking)
+	{
+		if (_isWalking == walking)
+			return;
+
+		_isWalking = walking;
+
+		if (_animPlayer == null || string.IsNullOrEmpty(_walkAnim))
+			return;
+
+		if (walking)
+			_animPlayer.Play(_walkAnim);
+		else
+			_animPlayer.Stop();
+	}
+
+	private string ResolveWalkAnimation(AnimationPlayer animationPlayer)
+	{
+		foreach (string libraryName in animationPlayer.GetAnimationLibraryList())
+		{
+			AnimationLibrary library = animationPlayer.GetAnimationLibrary(libraryName);
+
+			if (library.HasAnimation("mixamo_com"))
 			{
-				var lib = _animPlayer.GetAnimationLibrary(libName);
-				foreach (var animName in lib.GetAnimationList())
-				{
-					if (animName != "Take 001")
-					{
-						_walkAnim = libName == "" ? animName : $"{libName}/{animName}";
-						var anim = lib.GetAnimation(animName);
-						anim.LoopMode = Animation.LoopModeEnum.Linear;
-						GD.Print($"Monster animation found: '{_walkAnim}'");
-					}
-				}
+				Animation animation = library.GetAnimation("mixamo_com");
+				animation.LoopMode = Animation.LoopModeEnum.Linear;
+				return string.IsNullOrEmpty(libraryName) ? "mixamo_com" : $"{libraryName}/mixamo_com";
 			}
 		}
+
+		foreach (string libraryName in animationPlayer.GetAnimationLibraryList())
+		{
+			AnimationLibrary library = animationPlayer.GetAnimationLibrary(libraryName);
+
+			foreach (string animationName in library.GetAnimationList())
+			{
+				if (animationName == "Take 001")
+					continue;
+
+				Animation animation = library.GetAnimation(animationName);
+				animation.LoopMode = Animation.LoopModeEnum.Linear;
+				return string.IsNullOrEmpty(libraryName) ? animationName : $"{libraryName}/{animationName}";
+			}
+		}
+
+		GD.PrintErr("Enemy: No usable walk animation found.");
+		return "";
 	}
 
 	private AnimationPlayer FindAnimationPlayer(Node node)
 	{
-		if (node is AnimationPlayer ap)
-			return ap;
+		if (node is AnimationPlayer animationPlayer)
+			return animationPlayer;
 
-		foreach (var child in node.GetChildren())
+		foreach (Node child in node.GetChildren())
 		{
-			var found = FindAnimationPlayer(child);
+			AnimationPlayer found = FindAnimationPlayer(child);
 			if (found != null)
 				return found;
 		}
@@ -52,57 +213,28 @@ public partial class Enemy : CharacterBody3D
 		return null;
 	}
 
-	public override void _PhysicsProcess(double delta)
+	public void TakeDamage(float damage, Vector3 knockbackDirection, float knockbackForce)
 	{
-		if (_player == null)
+		_currentHealth -= damage;
+		
+		// Apply knockback
+		_knockbackVelocity = knockbackDirection.Normalized() * knockbackForce * KnockbackResistance;
+
+		GD.Print($"Enemy hit! Health: {_currentHealth}/{MaxHealth}");
+
+		if (_currentHealth <= 0.0f)
 		{
-			_player = GetTree().Root.FindChild("Player3D", true, false) as Node3D;
-			if (_player == null) return;
+			Die();
 		}
-
-		Vector3 velocity = Velocity;
-
-		if (!IsOnFloor())
-		{
-			velocity.Y -= _gravity * (float)delta;
-		}
-
-		float distance = GlobalPosition.DistanceTo(_player.GlobalPosition);
-
-		if (distance < ChaseRange && distance > 1.5f)
-		{
-			Vector3 direction = (_player.GlobalPosition - GlobalPosition);
-			direction.Y = 0;
-			direction = direction.Normalized();
-
-			velocity.X = direction.X * Speed;
-			velocity.Z = direction.Z * Speed;
-
-			// Face the player.
-			if (direction != Vector3.Zero)
-			{
-				LookAt(GlobalPosition + direction, Vector3.Up);
-			}
-
-			if (!_isWalking && _walkAnim != "")
-			{
-				_animPlayer.Play(_walkAnim);
-				_isWalking = true;
-			}
-		}
-		else
-		{
-			velocity.X = 0;
-			velocity.Z = 0;
-
-			if (_isWalking)
-			{
-				_animPlayer.Stop();
-				_isWalking = false;
-			}
-		}
-
-		Velocity = velocity;
-		MoveAndSlide();
 	}
+
+	private void Die()
+	{
+		GD.Print("Enemy died!");
+		QueueFree();
+	}
+
+	public bool IsAlive => _currentHealth > 0.0f;
+
+	public Area3D GetHitBox => _hitBox;
 }

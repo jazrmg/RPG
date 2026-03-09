@@ -1,170 +1,430 @@
 using Godot;
+using System.Collections.Generic;
 
 public partial class Player3D : CharacterBody3D
 {
-	[Export] public float Speed = 2.5f;
-	[Export] public float RunSpeed = 5.0f;
-	[Export] public float JumpVelocity = 4.5f;
+	[Export] public float MaxGroundSpeed = 5.0f;
+	[Export] public float GroundAcceleration = 25.0f;
+	[Export] public float GroundDeceleration = 30.0f;
+	[Export] public float GroundFriction = 0.95f;
+	
+	[Export] public float MaxRunSpeed = 8.5f;
+	[Export] public float RunAcceleration = 35.0f;
+	[Export] public float RunDeceleration = 40.0f;
+	
+	[Export] public float AirAcceleration = 15.0f;
+	[Export] public float AirDeceleration = 10.0f;
+	[Export] public float AirControl = 0.4f;
+	
+	[Export] public float JumpForce = 6.5f;
+	[Export] public float JumpCutMultiplier = 0.5f;
+	[Export] public float TerminalVelocity = 20.0f;
+	
 	[Export] public float MouseSensitivity = 0.3f;
+	[Export] public float RotationSpeed = 10.0f;
+	[Export] public float CameraMinPitchDegrees = -60.0f;
+	[Export] public float CameraMaxPitchDegrees = 30.0f;
+	[Export] public float AttackCooldown = 0.6f;
+	
+	[Export] public float CoyoteTime = 0.1f;
+	[Export] public float JumpBufferTime = 0.1f;
+	
+	[Export] public float SlashDamage = 25.0f;
+	[Export] public float SlashKnockback = 10.0f;
 
-	private float _gravity = (float)ProjectSettings.GetSetting("physics/3d/default_gravity");
+	private const string PlayerGroup = "player";
+
+	private const string AnimationPlayerPath = "CharacterModel/AnimationPlayer";
+	private const string SpringArmPath = "SpringArm3D";
+	private const string CameraPath = "SpringArm3D/Camera3D";
+
+	private const string SwordRootPath = "CharacterModel/Skeleton3D/RightHandAttachment/antique_estoc_1k";
+	private const string SwordMeshPath = "CharacterModel/Skeleton3D/RightHandAttachment/antique_estoc_1k/antique_estoc";
+
+	private const string IdleFbxPath = "res://models/player/Idle.fbx";
+	private const string WalkFbxPath = "res://models/player/Walking.fbx";
+	private const string RunFbxPath = "res://models/player/Running.fbx";
+	private const string JumpFbxPath = "res://models/player/Jump.fbx";
+	private const string SitFbxPath = "res://models/player/Sitting Idle.fbx";
+	private const string SwordIdleFbxPath = "res://models/player/Great_Sword_Idle.fbx";
+	private const string SwordSlashFbxPath = "res://models/player/Great_Sword_Slash.fbx";
+
+	private enum AnimState
+	{
+		None,
+		Idle,
+		Walk,
+		Run,
+		Jump,
+		Sit,
+		SwordIdle,
+		SwordSlash
+	}
+
+	private readonly float _gravity = (float)ProjectSettings.GetSetting("physics/3d/default_gravity");
+
 	private Camera3D _camera;
 	private SpringArm3D _springArm;
 	private AnimationPlayer _animPlayer;
+
+	private Node3D _swordRoot;
+	private MeshInstance3D _swordMesh;
 
 	private string _idleAnim = "";
 	private string _walkAnim = "";
 	private string _runAnim = "";
 	private string _jumpAnim = "";
 	private string _sitAnim = "";
-	private string _currentState = "";
+	private string _swordIdleAnim = "";
+	private string _swordSlashAnim = "";
+
+	private AnimState _currentAnimState = AnimState.None;
+
+	private bool _isSwordEquipped = false;
+	private bool _isSitting = false;
+	private bool _isAttacking = false;
+	private float _attackCooldownTimer = 0.0f;
+
+	// Physics state
+	private Vector3 _velocity = Vector3.Zero;
+	private float _coyoteCounter = 0.0f;
+	private float _jumpBufferCounter = 0.0f;
+	private bool _isJumping = false;
+
+	// Attack tracking
+	private HashSet<Area3D> _hitEnemiesThisAttack = new HashSet<Area3D>();
+
+	// Camera rig
+	private float _cameraYaw;
+	private float _cameraPitch;
+	private float _cameraHeightOffset = 1.5f;
 
 	public override void _Ready()
 	{
-		_springArm = GetNode<SpringArm3D>("SpringArm3D");
-		_camera = GetNode<Camera3D>("SpringArm3D/Camera3D");
-		_animPlayer = GetNode<AnimationPlayer>("CharacterModel/AnimationPlayer");
+		AddToGroup(PlayerGroup);
+
+		_springArm = GetNodeOrNull<SpringArm3D>(SpringArmPath);
+		_camera = GetNodeOrNull<Camera3D>(CameraPath);
+		_animPlayer = GetNodeOrNull<AnimationPlayer>(AnimationPlayerPath);
+
+		if (_springArm == null || _camera == null || _animPlayer == null)
+		{
+			GD.PrintErr("Player3D: Missing one or more required nodes.");
+			SetPhysicsProcess(false);
+			SetProcessInput(false);
+			return;
+		}
 
 		Input.MouseMode = Input.MouseModeEnum.Captured;
 
-		// Force root node to CharacterModel.
 		_animPlayer.RootNode = _animPlayer.GetParent().GetPath();
 
-		// Print what's available in the model.
-		foreach (var libName in _animPlayer.GetAnimationLibraryList())
+		_cameraHeightOffset = _springArm.Position.Y;
+		_cameraYaw = Rotation.Y;
+		_cameraPitch = _springArm.Rotation.X;
+
+		_springArm.TopLevel = true;
+		UpdateCameraRig();
+
+		InitializeAnimations();
+		ResolveSwordNodes();
+		SetSwordVisible(false);
+
+		PlayAnimationState(AnimState.Idle, _idleAnim);
+	}
+
+	public override void _Input(InputEvent @event)
+	{
+		if (@event is InputEventMouseMotion mouseMotion && Input.MouseMode == Input.MouseModeEnum.Captured)
 		{
-			var lib = _animPlayer.GetAnimationLibrary(libName);
-			foreach (var animName in lib.GetAnimationList())
-			{
-				string fullName = libName == "" ? animName : $"{libName}/{animName}";
-				GD.Print($"Available: '{fullName}'");
-			}
+			_cameraYaw += Mathf.DegToRad(-mouseMotion.Relative.X * MouseSensitivity);
+			_cameraPitch += Mathf.DegToRad(-mouseMotion.Relative.Y * MouseSensitivity);
+
+			float minPitch = Mathf.DegToRad(CameraMinPitchDegrees);
+			float maxPitch = Mathf.DegToRad(CameraMaxPitchDegrees);
+			_cameraPitch = Mathf.Clamp(_cameraPitch, minPitch, maxPitch);
+
+			UpdateCameraRig();
 		}
 
-		// Create custom library for all animations.
-		var customLibrary = new AnimationLibrary();
-		_animPlayer.AddAnimationLibrary("Custom", customLibrary);
-
-		// Load idle animation from Idle.fbx.
-		var idleAnim = ExtractAnimation("res://models/player/Idle.fbx");
-		if (idleAnim != null)
+		if (@event.IsActionPressed("ui_cancel"))
 		{
-			idleAnim.LoopMode = Animation.LoopModeEnum.Linear;
-			customLibrary.AddAnimation("Idle", idleAnim);
-			_idleAnim = "Custom/Idle";
-			GD.Print("Idle animation loaded!");
+			Input.MouseMode = Input.MouseModeEnum.Visible;
 		}
 
-		// Load walking animation.
-		var walkAnim = ExtractAnimation("res://models/player/Walking.fbx");
-		if (walkAnim != null)
+		if (@event is InputEventMouseButton mouseButton &&
+			mouseButton.Pressed &&
+			mouseButton.ButtonIndex == MouseButton.Left &&
+			Input.MouseMode != Input.MouseModeEnum.Captured)
 		{
-			customLibrary.AddAnimation("Walking", walkAnim);
-			_walkAnim = "Custom/Walking";
-			GD.Print("Walking animation loaded!");
-		}
-
-		// Load running animation.
-		var runAnim = ExtractAnimation("res://models/player/Running.fbx");
-		if (runAnim != null)
-		{
-			customLibrary.AddAnimation("Running", runAnim);
-			_runAnim = "Custom/Running";
-			GD.Print("Running animation loaded!");
-		}
-
-		// Load jump animation.
-		var jumpAnim = ExtractAnimation("res://models/player/Jump.fbx");
-		if (jumpAnim != null)
-		{
-			jumpAnim.LoopMode = Animation.LoopModeEnum.None;
-			customLibrary.AddAnimation("Jump", jumpAnim);
-			_jumpAnim = "Custom/Jump";
-			GD.Print("Jump animation loaded!");
-		}
-
-		// Load sitting animation.
-		var sitAnim = ExtractAnimation("res://models/player/Sitting Idle.fbx");
-		if (sitAnim != null)
-		{
-			sitAnim.LoopMode = Animation.LoopModeEnum.Linear;
-			customLibrary.AddAnimation("Sitting", sitAnim);
-			_sitAnim = "Custom/Sitting";
-			GD.Print("Sitting animation loaded!");
-		}
-
-		GD.Print($"Idle: '{_idleAnim}' Walk: '{_walkAnim}' Run: '{_runAnim}' Jump: '{_jumpAnim}' Sit: '{_sitAnim}'");
-
-		// Start idle.
-		if (_idleAnim != "")
-		{
-			_animPlayer.Play(_idleAnim);
-			_currentState = "idle";
+			Input.MouseMode = Input.MouseModeEnum.Captured;
 		}
 	}
 
-	private Animation ExtractAnimation(string fbxPath)
+	public override void _PhysicsProcess(double delta)
 	{
-		var scene = GD.Load<PackedScene>(fbxPath);
+		float dt = (float)delta;
+
+		HandleSwordToggle();
+		HandleSitToggle();
+		HandleAttack();
+
+		// Jump buffer and coyote time
+		_jumpBufferCounter -= dt;
+		_coyoteCounter -= dt;
+
+		Vector2 inputDir = (_isSitting || _isAttacking)
+			? Vector2.Zero
+			: Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+
+		bool isRunning = inputDir != Vector2.Zero && Input.IsKeyPressed(Key.Shift);
+		Vector3 moveDirection = GetCameraRelativeDirection(inputDir);
+
+		// Handle jump input
+		if (Input.IsActionJustPressed("ui_accept") && !_isSitting && !_isAttacking)
+		{
+			_jumpBufferCounter = JumpBufferTime;
+		}
+
+		// Apply physics
+		bool isGrounded = IsOnFloor();
+		
+		if (isGrounded)
+		{
+			_coyoteCounter = CoyoteTime;
+			_velocity.Y = 0.0f;
+		}
+
+		ApplyGravity(ref _velocity, dt);
+		HandleMovement(moveDirection, isRunning, dt);
+		HandleJump();
+
+		// Check attack hits during attack animation
+		if (_isAttacking)
+		{
+			CheckAttackHits();
+		}
+
+		// Clamp terminal velocity
+		if (_velocity.Y < -TerminalVelocity)
+		{
+			_velocity.Y = -TerminalVelocity;
+		}
+
+		Velocity = _velocity;
+		MoveAndSlide();
+
+		UpdateCameraRig();
+		UpdateAnimationState(moveDirection, isRunning, _isJumping);
+
+		_attackCooldownTimer -= dt;
+		_isJumping = false;
+	}
+
+	private void ApplyGravity(ref Vector3 velocity, float delta)
+	{
+		if (!IsOnFloor())
+		{
+			velocity.Y -= _gravity * delta;
+		}
+	}
+
+	private void HandleMovement(Vector3 desiredDirection, bool isRunning, float delta)
+	{
+		bool isGrounded = IsOnFloor();
+		float maxSpeed = isRunning ? MaxRunSpeed : MaxGroundSpeed;
+		float acceleration = isRunning ? RunAcceleration : GroundAcceleration;
+		float deceleration = isRunning ? RunDeceleration : GroundDeceleration;
+
+		// Apply air control reduction
+		if (!isGrounded)
+		{
+			acceleration *= AirControl;
+			deceleration *= AirControl;
+			maxSpeed *= AirControl;
+		}
+
+		Vector3 horizontalVelocity = new Vector3(_velocity.X, 0, _velocity.Z);
+		Vector3 desiredVelocity = desiredDirection * maxSpeed;
+
+		if (desiredDirection != Vector3.Zero)
+		{
+			// Accelerate toward desired direction
+			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, acceleration * delta);
+		}
+		else
+		{
+			// Decelerate
+			if (isGrounded)
+			{
+				// Apply friction on ground
+				horizontalVelocity *= GroundFriction;
+			}
+			else
+			{
+				// Air deceleration
+				horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, deceleration * delta);
+			}
+		}
+
+		_velocity.X = horizontalVelocity.X;
+		_velocity.Z = horizontalVelocity.Z;
+
+		// Rotate character toward movement direction
+		if (desiredDirection != Vector3.Zero)
+		{
+			RotateTowardDirection(desiredDirection, delta);
+		}
+	}
+
+	private void HandleJump()
+	{
+		// Check if we should jump
+		if (_jumpBufferCounter > 0 && _coyoteCounter > 0 && !_isJumping)
+		{
+			_velocity.Y = JumpForce;
+			_isJumping = true;
+			_jumpBufferCounter = 0.0f;
+			_coyoteCounter = 0.0f;
+		}
+
+		// Jump cut - reduce upward velocity if player releases jump early
+		if (_isJumping && !Input.IsActionPressed("ui_accept") && _velocity.Y > 0)
+		{
+			_velocity.Y *= JumpCutMultiplier;
+			_isJumping = false;
+		}
+	}
+
+	private Vector3 GetCameraRelativeDirection(Vector2 inputDir)
+	{
+		if (inputDir == Vector2.Zero)
+			return Vector3.Zero;
+
+		Vector3 camForward = -_camera.GlobalTransform.Basis.Z;
+		Vector3 camRight = _camera.GlobalTransform.Basis.X;
+
+		camForward.Y = 0;
+		camRight.Y = 0;
+
+		camForward = camForward.Normalized();
+		camRight = camRight.Normalized();
+
+		Vector3 direction = (camForward * -inputDir.Y) + (camRight * inputDir.X);
+		return direction.Normalized();
+	}
+
+	private void RotateTowardDirection(Vector3 direction, float delta)
+	{
+		if (direction == Vector3.Zero)
+			return;
+
+		float targetYaw = Mathf.Atan2(direction.X, direction.Z);
+		float t = Mathf.Clamp(RotationSpeed * delta, 0.0f, 1.0f);
+
+		Rotation = new Vector3(
+			Rotation.X,
+			Mathf.LerpAngle(Rotation.Y, targetYaw, t),
+			Rotation.Z
+		);
+	}
+
+	private void UpdateCameraRig()
+	{
+		_springArm.GlobalPosition = GlobalPosition + Vector3.Up * _cameraHeightOffset;
+		_springArm.GlobalRotation = new Vector3(_cameraPitch, _cameraYaw, 0.0f);
+	}
+
+	private void InitializeAnimations()
+	{
+		var customLibrary = new AnimationLibrary();
+		_animPlayer.AddAnimationLibrary("Custom", customLibrary);
+
+		_idleAnim = LoadAnimationToLibrary(customLibrary, IdleFbxPath, "Idle", true);
+		_walkAnim = LoadAnimationToLibrary(customLibrary, WalkFbxPath, "Walking", true);
+		_runAnim = LoadAnimationToLibrary(customLibrary, RunFbxPath, "Running", true);
+		_jumpAnim = LoadAnimationToLibrary(customLibrary, JumpFbxPath, "Jump", false);
+		_sitAnim = LoadAnimationToLibrary(customLibrary, SitFbxPath, "Sitting", true);
+		_swordIdleAnim = LoadAnimationToLibrary(customLibrary, SwordIdleFbxPath, "SwordIdle", true);
+		_swordSlashAnim = LoadAnimationToLibrary(customLibrary, SwordSlashFbxPath, "SwordSlash", false);
+	}
+
+	private string LoadAnimationToLibrary(AnimationLibrary library, string fbxPath, string animationName, bool loop)
+	{
+		Animation animation = ExtractAnimation(fbxPath, loop);
+		if (animation == null)
+		{
+			GD.PrintErr($"Player3D: Failed to load animation from '{fbxPath}'.");
+			return "";
+		}
+
+		library.AddAnimation(animationName, animation);
+		return $"Custom/{animationName}";
+	}
+
+	private Animation ExtractAnimation(string fbxPath, bool loop)
+	{
+		PackedScene scene = GD.Load<PackedScene>(fbxPath);
 		if (scene == null)
 		{
-			GD.PrintErr($"Could not load: {fbxPath}");
+			GD.PrintErr($"Player3D: Could not load scene '{fbxPath}'.");
 			return null;
 		}
 
-		var instance = scene.Instantiate();
+		Node instance = scene.Instantiate();
+		AnimationPlayer importedAnimPlayer = FindAnimationPlayer(instance);
 
-		// Search for AnimationPlayer anywhere in the scene.
-		var otherAnimPlayer = FindAnimationPlayer(instance);
-		if (otherAnimPlayer == null)
+		if (importedAnimPlayer == null)
 		{
-			GD.PrintErr($"No AnimationPlayer in: {fbxPath}");
+			GD.PrintErr($"Player3D: No AnimationPlayer found in '{fbxPath}'.");
 			instance.QueueFree();
 			return null;
 		}
 
-		Animation foundAnim = null;
-		foreach (var libName in otherAnimPlayer.GetAnimationLibraryList())
+		Animation foundAnimation = null;
+
+		foreach (string libraryName in importedAnimPlayer.GetAnimationLibraryList())
 		{
-			var lib = otherAnimPlayer.GetAnimationLibrary(libName);
-			if (lib.HasAnimation("mixamo_com"))
+			AnimationLibrary library = importedAnimPlayer.GetAnimationLibrary(libraryName);
+			if (library.HasAnimation("mixamo_com"))
 			{
-				foundAnim = (Animation)lib.GetAnimation("mixamo_com").Duplicate();
+				foundAnimation = (Animation)library.GetAnimation("mixamo_com").Duplicate();
 				break;
 			}
 		}
 
 		instance.QueueFree();
 
-		// Remove root motion — strip the Hips POSITION track.
-		if (foundAnim != null)
+		if (foundAnimation == null)
 		{
-			for (int i = foundAnim.GetTrackCount() - 1; i >= 0; i--)
-			{
-				string path = foundAnim.TrackGetPath(i);
-
-				if (path.Contains("Hips") && foundAnim.TrackGetType(i) == Animation.TrackType.Position3D)
-				{
-					GD.Print($"Removing root motion track: {path}");
-					foundAnim.RemoveTrack(i);
-				}
-			}
-
-			// Make the animation loop by default (jump overrides this later).
-			foundAnim.LoopMode = Animation.LoopModeEnum.Linear;
+			GD.PrintErr($"Player3D: No 'mixamo_com' animation found in '{fbxPath}'.");
+			return null;
 		}
 
-		return foundAnim;
+		for (int i = foundAnimation.GetTrackCount() - 1; i >= 0; i--)
+		{
+			string trackPath = foundAnimation.TrackGetPath(i).ToString();
+			if (trackPath.Contains("Hips") && foundAnimation.TrackGetType(i) == Animation.TrackType.Position3D)
+			{
+				foundAnimation.RemoveTrack(i);
+			}
+		}
+
+		foundAnimation.LoopMode = loop
+			? Animation.LoopModeEnum.Linear
+			: Animation.LoopModeEnum.None;
+
+		return foundAnimation;
 	}
 
 	private AnimationPlayer FindAnimationPlayer(Node node)
 	{
-		if (node is AnimationPlayer ap)
-			return ap;
+		if (node is AnimationPlayer animationPlayer)
+			return animationPlayer;
 
-		foreach (var child in node.GetChildren())
+		foreach (Node child in node.GetChildren())
 		{
-			var found = FindAnimationPlayer(child);
+			AnimationPlayer found = FindAnimationPlayer(child);
 			if (found != null)
 				return found;
 		}
@@ -172,126 +432,163 @@ public partial class Player3D : CharacterBody3D
 		return null;
 	}
 
-	public override void _Input(InputEvent @event)
+	private void ResolveSwordNodes()
 	{
-		if (@event is InputEventMouseMotion mouseMotion)
+		_swordRoot = GetNodeOrNull<Node3D>(SwordRootPath);
+		_swordMesh = GetNodeOrNull<MeshInstance3D>(SwordMeshPath);
+
+		if (_swordRoot == null)
+			GD.PrintErr($"Player3D: Sword root not found at '{SwordRootPath}'.");
+
+		if (_swordMesh == null)
+			GD.PrintErr($"Player3D: Sword mesh not found at '{SwordMeshPath}'.");
+	}
+
+	private void SetSwordVisible(bool visible)
+	{
+		if (_swordRoot != null)
+			_swordRoot.Visible = visible;
+
+		if (_swordMesh != null)
+			_swordMesh.Visible = visible;
+	}
+
+	private void HandleSwordToggle()
+	{
+		if (!Input.IsActionJustPressed("equip_sword"))
+			return;
+
+		if (!IsOnFloor() || _isSitting || _isAttacking)
+			return;
+
+		_isSwordEquipped = !_isSwordEquipped;
+		SetSwordVisible(_isSwordEquipped);
+	}
+
+	private void HandleSitToggle()
+	{
+		if (!Input.IsActionJustPressed("sit"))
+			return;
+
+		if (!IsOnFloor() || _isAttacking)
+			return;
+
+		_isSitting = !_isSitting;
+	}
+
+	private void HandleAttack()
+	{
+		if (_isAttacking)
 		{
-			// Horizontal mouse rotates the player.
-			RotateY(Mathf.DegToRad(-mouseMotion.Relative.X * MouseSensitivity));
-
-			// Vertical mouse rotates the spring arm up/down.
-			_springArm.RotateX(Mathf.DegToRad(-mouseMotion.Relative.Y * MouseSensitivity));
-
-			Vector3 armRotation = _springArm.Rotation;
-			armRotation.X = Mathf.Clamp(armRotation.X, Mathf.DegToRad(-60), Mathf.DegToRad(30));
-			_springArm.Rotation = armRotation;
+			if (!_animPlayer.IsPlaying())
+			{
+				_isAttacking = false;
+				_hitEnemiesThisAttack.Clear();
+			}
+			return;
 		}
 
-		if (@event.IsActionPressed("ui_cancel"))
+		if (!Input.IsActionJustPressed("attack"))
+			return;
+
+		if (!IsOnFloor() || !_isSwordEquipped || _isSitting)
+			return;
+
+		if (_attackCooldownTimer > 0.0f)
+			return;
+
+		_isAttacking = true;
+		_hitEnemiesThisAttack.Clear();
+		_attackCooldownTimer = AttackCooldown;
+		PlayAnimationState(AnimState.SwordSlash, _swordSlashAnim);
+	}
+
+	private void CheckAttackHits()
+	{
+		// Get all areas overlapping with the sword
+		if (_swordRoot == null)
+			return;
+
+		var space = GetWorld3D().DirectSpaceState;
+		var query = new PhysicsShapeQueryParameters3D();
+		query.Shape = new BoxShape3D { Size = Vector3.One * 2.0f };
+		query.Transform = _swordRoot.GlobalTransform;
+
+		var results = space.IntersectShape(query);
+
+		foreach (var result in results)
 		{
-			Input.MouseMode = Input.MouseModeEnum.Visible;
+			var collider = (Node)result["collider"];
+			var area = collider as Area3D;
+			
+			if (area != null && area.IsInGroup("enemy_hitbox"))
+			{
+				// Get the parent enemy
+				Node3D parent = area.GetParent() as Node3D;
+				if (parent != null && parent is Enemy enemy)
+				{
+					// Only hit each enemy once per attack
+					if (!_hitEnemiesThisAttack.Contains(area))
+					{
+						_hitEnemiesThisAttack.Add(area);
+						
+						Vector3 knockbackDir = (enemy.GlobalPosition - GlobalPosition).Normalized();
+						knockbackDir.Y = 0;
+						knockbackDir = knockbackDir.Normalized();
+						
+						enemy.TakeDamage(SlashDamage, knockbackDir, SlashKnockback);
+					}
+				}
+			}
 		}
 	}
 
-	public override void _PhysicsProcess(double delta)
+	private void UpdateAnimationState(Vector3 moveDirection, bool isRunning, bool jumpedThisFrame)
 	{
-		Vector3 velocity = Velocity;
+		if (_isAttacking)
+			return;
 
-		if (!IsOnFloor())
+		if (_isSitting)
 		{
-			velocity.Y -= _gravity * (float)delta;
+			PlayAnimationState(AnimState.Sit, _sitAnim);
+			return;
 		}
 
-		// Jump.
-		if (Input.IsActionJustPressed("ui_accept") && IsOnFloor() && _currentState != "sit")
+		if (jumpedThisFrame || !IsOnFloor())
 		{
-			velocity.Y = JumpVelocity;
-			if (_jumpAnim != "")
-			{
-				_animPlayer.Play(_jumpAnim);
-				_currentState = "jump";
-			}
+			PlayAnimationState(AnimState.Jump, _jumpAnim);
+			return;
 		}
 
-		// Sit toggle.
-		if (Input.IsActionJustPressed("sit") && IsOnFloor())
+		if (moveDirection != Vector3.Zero)
 		{
-			if (_currentState == "sit")
-			{
-				_animPlayer.Play(_idleAnim);
-				_currentState = "idle";
-			}
-			else if (_sitAnim != "")
-			{
-				_animPlayer.Play(_sitAnim);
-				_currentState = "sit";
-			}
+			if (isRunning)
+				PlayAnimationState(AnimState.Run, _runAnim);
+			else
+				PlayAnimationState(AnimState.Walk, _walkAnim);
+
+			return;
 		}
 
-		// Block movement while sitting.
-		Vector2 inputDir = Vector2.Zero;
-		if (_currentState != "sit")
+		if (_isSwordEquipped)
 		{
-			inputDir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
-		}
-
-		Vector3 forward = -GlobalTransform.Basis.Z;
-		Vector3 right = GlobalTransform.Basis.X;
-
-		forward.Y = 0;
-		right.Y = 0;
-		forward = forward.Normalized();
-		right = right.Normalized();
-
-		Vector3 direction = (forward * inputDir.Y * -1) + (right * inputDir.X);
-
-		bool isRunning = Input.IsKeyPressed(Key.Shift);
-		float currentSpeed = isRunning ? RunSpeed : Speed;
-
-		if (direction != Vector3.Zero)
-		{
-			velocity.X = direction.X * currentSpeed;
-			velocity.Z = direction.Z * currentSpeed;
+			PlayAnimationState(AnimState.SwordIdle, _swordIdleAnim);
 		}
 		else
 		{
-			velocity.X = Mathf.MoveToward(velocity.X, 0, Speed);
-			velocity.Z = Mathf.MoveToward(velocity.Z, 0, Speed);
+			PlayAnimationState(AnimState.Idle, _idleAnim);
 		}
+	}
 
-		// Only change animations when on the floor AND not jumping or sitting.
-		if (IsOnFloor() && _currentState != "jump" && _currentState != "sit")
-		{
-			if (direction != Vector3.Zero)
-			{
-				if (isRunning && _currentState != "run" && _runAnim != "")
-				{
-					_animPlayer.Play(_runAnim);
-					_currentState = "run";
-				}
-				else if (!isRunning && _currentState != "walk" && _walkAnim != "")
-				{
-					_animPlayer.Play(_walkAnim);
-					_currentState = "walk";
-				}
-			}
-			else
-			{
-				if (_currentState != "idle" && _idleAnim != "")
-				{
-					_animPlayer.Play(_idleAnim);
-					_currentState = "idle";
-				}
-			}
-		}
+	private void PlayAnimationState(AnimState state, string animationName)
+	{
+		if (string.IsNullOrEmpty(animationName))
+			return;
 
-		// When landing after a jump, reset state so animations can switch again.
-		if (IsOnFloor() && _currentState == "jump" && velocity.Y <= 0)
-		{
-			_currentState = "landed";
-		}
+		if (_currentAnimState == state)
+			return;
 
-		Velocity = velocity;
-		MoveAndSlide();
+		_animPlayer.Play(animationName);
+		_currentAnimState = state;
 	}
 }

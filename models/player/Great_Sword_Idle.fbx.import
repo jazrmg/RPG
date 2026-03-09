@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cfwphrsr5nrdc"
-path="res://.godot/imported/Shoved Reaction With Spin.fbx-a4cb8f8239bfdd9d710d1d840fb897a8.scn"
+uid="uid://l28fm1u26le4"
+path="res://.godot/imported/Great_Sword_Idle.fbx-f300f401fe4a69ac53a4c0309ff5519b.scn"
 
 [deps]
 
-source_file="res://models/player/Shoved Reaction With Spin.fbx"
-dest_files=["res://.godot/imported/Shoved Reaction With Spin.fbx-a4cb8f8239bfdd9d710d1d840fb897a8.scn"]
+source_file="res://models/player/Great_Sword_Idle.fbx"
+dest_files=["res://.godot/imported/Great_Sword_Idle.fbx-f300f401fe4a69ac53a4c0309ff5519b.scn"]
 
 [params]
 
