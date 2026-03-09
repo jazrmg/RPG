@@ -33,17 +33,18 @@ public partial class Player3D : CharacterBody3D
 	
 	[Export] public float SlashDamage = 25.0f;
 	[Export] public float SlashKnockback = 10.0f;
+	[Export] public float InvincibilityDuration = 0.3f;
+	[Export] public float StrafingSpeedMultiplier = 0.7f;
+	[Export] public float BackwardSpeedMultiplier = 0.5f;
 	
 	[Export] public float MaxPlayerHealth = 100.0f;
 
-	// Stamina system
 	[Export] public float MaxStamina = 100.0f;
-	[Export] public float StaminaDrainRateRun = 30.0f;  // Per second while running
-	[Export] public float StaminaDrainRateAttack = 25.0f;  // Per attack
-	[Export] public float StaminaRegenRate = 15.0f;  // Per second while walking/idle
-	[Export] public float StaminaRegenDelay = 0.5f;  // Delay before regen starts (realistic fatigue)
+	[Export] public float StaminaDrainRateRun = 30.0f;
+	[Export] public float StaminaDrainRateAttack = 25.0f;
+	[Export] public float StaminaRegenRate = 15.0f;
+	[Export] public float StaminaRegenDelay = 0.5f;
 	
-	// Health system
 	private float _playerHealth = 100.0f;
 	private ProgressBar _playerHealthBar;
 	private Label _playerHealthLabel;
@@ -51,10 +52,10 @@ public partial class Player3D : CharacterBody3D
 	private float _stamina = 100.0f;
 	private ProgressBar _staminaBar;
 	private Label _staminaLabel;
-	private float _staminaEmptyTimer = 0.0f;  // Cooldown before stamina can regen
+	private float _staminaEmptyTimer = 0.0f;
+	private float _invincibilityTimer = 0.0f;
 
 	private const string PlayerGroup = "player";
-
 	private const string AnimationPlayerPath = "CharacterModel/AnimationPlayer";
 	private const string SpringArmPath = "SpringArm3D";
 	private const string CameraPath = "SpringArm3D/Camera3D";
@@ -105,23 +106,20 @@ public partial class Player3D : CharacterBody3D
 	private bool _isSitting = false;
 	private bool _isAttacking = false;
 	private float _attackCooldownTimer = 0.0f;
+	private float _damageFlashTimer = 0.0f;
 	
-	// Game state
 	private bool _isGameOver = false;
 	private Control _gameOverUI = null;
 
-	// Physics state
 	private Vector3 _velocity = Vector3.Zero;
 	private Vector3 _lastInputDirection = Vector3.Zero;
 	private float _coyoteCounter = 0.0f;
 	private float _jumpBufferCounter = 0.0f;
 	private bool _isJumping = false;
-	private bool _wasInAir = false;  // For landing detection
+	private bool _wasInAir = false;
 
-	// Attack tracking
 	private HashSet<Enemy> _hitEnemiesThisAttack = new HashSet<Enemy>();
 
-	// Camera rig
 	private float _cameraYaw;
 	private float _cameraPitch;
 	private float _cameraHeightOffset = 1.5f;
@@ -162,11 +160,12 @@ public partial class Player3D : CharacterBody3D
 
 	public override void _Input(InputEvent @event)
 	{
-		// Handle restart on Enter key when game is over
 		if (_isGameOver && @event.IsActionPressed("ui_accept"))
 		{
 			RestartGame();
-			GetTree().Root.SetInputAsHandled();
+			SceneTree tree = GetTree();
+			if (tree != null)
+				tree.Root.SetInputAsHandled();
 			return;
 		}
 
@@ -200,11 +199,20 @@ public partial class Player3D : CharacterBody3D
 	{
 		float dt = (float)delta;
 
+		if (_invincibilityTimer > 0.0f)
+		{
+			_invincibilityTimer -= dt;
+		}
+
+		if (_damageFlashTimer > 0.0f)
+		{
+			_damageFlashTimer -= dt;
+		}
+
 		HandleSwordToggle();
 		HandleSitToggle();
 		HandleAttack();
 
-		// Jump buffer and coyote time
 		_jumpBufferCounter -= dt;
 		_coyoteCounter -= dt;
 
@@ -214,26 +222,21 @@ public partial class Player3D : CharacterBody3D
 
 		bool isRunning = inputDir != Vector2.Zero && Input.IsKeyPressed(Key.Shift);
 		
-		// Can't run without stamina - FORCE STOP if stamina is 0
 		if (isRunning && !CanRun())
 			isRunning = false;
 		
-		// If stamina just ran out (was running, now empty), force walk
 		if (_stamina <= 0.0f && isRunning)
 			isRunning = false;
 		
 		Vector3 moveDirection = GetCameraRelativeDirection(inputDir);
 
-		// Handle jump input
 		if (Input.IsActionJustPressed("ui_accept") && !_isSitting && !_isAttacking)
 		{
 			_jumpBufferCounter = JumpBufferTime;
 		}
 
-		// Apply physics
 		bool isGrounded = IsOnFloor();
 		
-		// Detect landing (just touched ground after being in air)
 		bool justLanded = isGrounded && _wasInAir;
 		_wasInAir = !isGrounded;
 		
@@ -247,13 +250,11 @@ public partial class Player3D : CharacterBody3D
 		HandleMovement(moveDirection, isRunning, isGrounded, dt);
 		HandleJump();
 
-		// Check attack hits during attack animation
 		if (_isAttacking)
 		{
 			CheckAttackHits();
 		}
 
-		// Clamp terminal velocity
 		if (_velocity.Y < -TerminalVelocity)
 		{
 			_velocity.Y = -TerminalVelocity;
@@ -262,7 +263,6 @@ public partial class Player3D : CharacterBody3D
 		Velocity = _velocity;
 		MoveAndSlide();
 
-		// Update stamina
 		UpdateStamina(isRunning, dt);
 
 		UpdateCameraRig();
@@ -276,7 +276,6 @@ public partial class Player3D : CharacterBody3D
 	{
 		if (!IsOnFloor())
 		{
-			// Apex gravity - lighter gravity at jump peak
 			float gravityMultiplier = velocity.Y > 0 ? ApexGravityMultiplier : FallGravityMultiplier;
 			velocity.Y -= _gravity * gravityMultiplier * delta;
 		}
@@ -288,7 +287,22 @@ public partial class Player3D : CharacterBody3D
 		float acceleration = isRunning ? RunAcceleration : GroundAcceleration;
 		float deceleration = isRunning ? RunDeceleration : GroundDeceleration;
 
-		// Apply air control reduction
+		if (desiredDirection != Vector3.Zero)
+		{
+			Vector2 inputDir = (_isSitting || _isAttacking)
+				? Vector2.Zero
+				: Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+
+			if (inputDir.Y > 0)
+			{
+				maxSpeed *= BackwardSpeedMultiplier;
+			}
+			else if (inputDir.X != 0)
+			{
+				maxSpeed *= StrafingSpeedMultiplier;
+			}
+		}
+
 		if (!isGrounded)
 		{
 			acceleration *= AirControl;
@@ -298,26 +312,21 @@ public partial class Player3D : CharacterBody3D
 
 		Vector3 horizontalVelocity = new Vector3(_velocity.X, 0, _velocity.Z);
 
-		// Handle movement input
 		if (desiredDirection != Vector3.Zero)
 		{
-			// Smooth input transitions
 			_lastInputDirection = _lastInputDirection.Lerp(desiredDirection, 0.1f);
 			
 			Vector3 desiredVelocity = _lastInputDirection * maxSpeed;
 
-			// Smooth acceleration - use MoveToward for more natural feel
 			float currentSpeed = horizontalVelocity.Length();
 			float desiredSpeed = desiredVelocity.Length();
 			
 			if (currentSpeed < desiredSpeed)
 			{
-				// Accelerate
 				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, acceleration * delta);
 			}
 			else
 			{
-				// Match desired velocity smoothly
 				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, deceleration * delta * 0.5f);
 			}
 		}
@@ -325,15 +334,12 @@ public partial class Player3D : CharacterBody3D
 		{
 			_lastInputDirection = Vector3.Zero;
 			
-			// Decelerate
 			if (isGrounded)
 			{
-				// Apply friction on ground - more realistic deceleration
 				horizontalVelocity *= GroundFriction;
 			}
 			else
 			{
-				// Air deceleration
 				horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, deceleration * delta);
 			}
 		}
@@ -341,7 +347,6 @@ public partial class Player3D : CharacterBody3D
 		_velocity.X = horizontalVelocity.X;
 		_velocity.Z = horizontalVelocity.Z;
 
-		// Rotate character toward movement direction
 		if (desiredDirection != Vector3.Zero)
 		{
 			RotateTowardDirection(desiredDirection, delta);
@@ -350,7 +355,6 @@ public partial class Player3D : CharacterBody3D
 
 	private void HandleJump()
 	{
-		// Check if we should jump
 		if (_jumpBufferCounter > 0 && _coyoteCounter > 0 && !_isJumping)
 		{
 			_velocity.Y = JumpForce;
@@ -359,7 +363,6 @@ public partial class Player3D : CharacterBody3D
 			_coyoteCounter = 0.0f;
 		}
 
-		// Jump cut - reduce upward velocity if player releases jump early
 		if (_isJumping && !Input.IsActionPressed("ui_accept") && _velocity.Y > 0)
 		{
 			_velocity.Y *= JumpCutMultiplier;
@@ -393,7 +396,6 @@ public partial class Player3D : CharacterBody3D
 		float targetYaw = Mathf.Atan2(direction.X, direction.Z);
 		float currentYaw = Rotation.Y;
 
-		// Smooth rotation with LerpAngle
 		float newYaw = Mathf.LerpAngle(currentYaw, targetYaw, RotationSpeed * delta);
 
 		Rotation = new Vector3(
@@ -570,17 +572,21 @@ public partial class Player3D : CharacterBody3D
 		if (_isSitting)
 			return;
 
+		Vector2 inputDir = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+		bool isRunning = inputDir != Vector2.Zero && Input.IsKeyPressed(Key.Shift);
+		if (isRunning)
+			return;
+
 		if (_attackCooldownTimer > 0.0f)
 			return;
 
-		// Check if player has stamina for attack
 		if (!HasStaminaForAction(StaminaDrainRateAttack))
 			return;
 
 		_isAttacking = true;
 		_hitEnemiesThisAttack.Clear();
 		_attackCooldownTimer = AttackCooldown;
-		DrainStaminaForAttack();  // Drain stamina on attack
+		DrainStaminaForAttack();
 		PlayAnimationState(AnimState.SwordSlash, _swordSlashAnim);
 	}
 
@@ -629,7 +635,6 @@ public partial class Player3D : CharacterBody3D
 			return;
 		}
 
-		// Immediate idle on landing (fixes sliding)
 		if (justLanded && !jumpedThisFrame)
 		{
 			if (_isSwordEquipped)
@@ -682,12 +687,10 @@ public partial class Player3D : CharacterBody3D
 		_playerHealth = MaxPlayerHealth;
 		_stamina = MaxStamina;
 
-		// Create canvas layer for UI
 		CanvasLayer canvasLayer = new CanvasLayer();
 		canvasLayer.Layer = 100;
 		AddChild(canvasLayer);
 
-		// Create container
 		Control container = new Control();
 		container.MouseFilter = Control.MouseFilterEnum.Ignore;
 		container.AnchorLeft = 0.0f;
@@ -696,7 +699,6 @@ public partial class Player3D : CharacterBody3D
 		container.AnchorBottom = 1.0f;
 		canvasLayer.AddChild(container);
 
-		// Create health bar
 		_playerHealthBar = new ProgressBar();
 		_playerHealthBar.MinValue = 0.0f;
 		_playerHealthBar.MaxValue = MaxPlayerHealth;
@@ -710,10 +712,9 @@ public partial class Player3D : CharacterBody3D
 		_playerHealthBar.OffsetRight = -10.0f;
 		_playerHealthBar.OffsetBottom = 30.0f;
 		_playerHealthBar.MouseFilter = Control.MouseFilterEnum.Ignore;
-		_playerHealthBar.SelfModulate = new Color(0.2f, 1.0f, 0.2f, 0.8f);  // Green
+		_playerHealthBar.SelfModulate = new Color(0.2f, 1.0f, 0.2f, 0.8f);
 		container.AddChild(_playerHealthBar);
 
-		// Create health label
 		_playerHealthLabel = new Label();
 		_playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {MaxPlayerHealth:F0}";
 		_playerHealthLabel.AnchorLeft = 0.0f;
@@ -728,7 +729,6 @@ public partial class Player3D : CharacterBody3D
 		_playerHealthLabel.AddThemeColorOverride("font_color", Colors.White);
 		container.AddChild(_playerHealthLabel);
 
-		// Create stamina bar
 		_staminaBar = new ProgressBar();
 		_staminaBar.MinValue = 0.0f;
 		_staminaBar.MaxValue = MaxStamina;
@@ -742,10 +742,9 @@ public partial class Player3D : CharacterBody3D
 		_staminaBar.OffsetRight = -10.0f;
 		_staminaBar.OffsetBottom = 80.0f;
 		_staminaBar.MouseFilter = Control.MouseFilterEnum.Ignore;
-		_staminaBar.SelfModulate = new Color(1.0f, 1.0f, 0.2f, 0.8f);  // Yellow
+		_staminaBar.SelfModulate = new Color(1.0f, 1.0f, 0.2f, 0.8f);
 		container.AddChild(_staminaBar);
 
-		// Create stamina label
 		_staminaLabel = new Label();
 		_staminaLabel.Text = $"Stamina: {_stamina:F0} / {MaxStamina:F0}";
 		_staminaLabel.AnchorLeft = 0.0f;
@@ -763,7 +762,10 @@ public partial class Player3D : CharacterBody3D
 
 	public void PlayerTakeDamage(float damage)
 	{
-		if (_isGameOver) return;  // Can't take damage if already dead
+		if (_isGameOver) return;
+
+		if (_invincibilityTimer > 0.0f)
+			return;
 
 		_playerHealth -= damage;
 		if (_playerHealth < 0.0f)
@@ -775,54 +777,73 @@ public partial class Player3D : CharacterBody3D
 		if (_playerHealthLabel != null)
 			_playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {MaxPlayerHealth:F0}";
 
-		// Apply knockback away from enemy to prevent getting stuck
+		_invincibilityTimer = InvincibilityDuration;
+
+		_damageFlashTimer = 0.15f;
+
+		ShowDamageNumber(damage);
+
 		Node3D enemy = GetTree().GetFirstNodeInGroup("enemy") as Node3D;
 		if (enemy != null)
 		{
 			Vector3 knockbackDir = (GlobalPosition - enemy.GlobalPosition).Normalized();
-			knockbackDir.Y = 0;  // Keep on ground plane
+			knockbackDir.Y = 0;
 			knockbackDir = knockbackDir.Normalized();
 			
-			_velocity.X += knockbackDir.X * 5.0f;  // Knockback force
+			_velocity.X += knockbackDir.X * 5.0f;
 			_velocity.Z += knockbackDir.Z * 5.0f;
 		}
 
-		// Check for game over
 		if (_playerHealth <= 0.0f)
 		{
 			GameOver();
 		}
 	}
 
+	private void ShowDamageNumber(float damage)
+	{
+		Label damageLabel = new Label();
+		damageLabel.Text = damage.ToString("F0");
+		damageLabel.AddThemeColorOverride("font_color", Colors.Red);
+		damageLabel.AddThemeFontSizeOverride("font_size", 24);
+		
+		Vector2 screenPos = GetViewport().GetCamera3D().UnprojectPosition(GlobalPosition + Vector3.Up * 2.0f);
+		damageLabel.GlobalPosition = screenPos;
+		
+		GetParent().AddChild(damageLabel);
+		
+		Tween tween = CreateTween();
+		Vector2 startPos = damageLabel.GlobalPosition;
+		tween.SetTrans(Tween.TransitionType.Linear);
+		
+		tween.Parallel().TweenProperty(damageLabel, "global_position", startPos - Vector2.Up * 30.0f, 0.8f);
+		
+		tween.Parallel().TweenProperty(damageLabel, "modulate", new Color(1, 1, 1, 0), 0.8f);
+		
+		tween.TweenCallback(Callable.From(() => damageLabel.QueueFree()));
+	}
+
 	private void UpdateStamina(bool isRunning, float delta)
 	{
-		// Drain stamina while running
 		if (isRunning && IsOnFloor())
 		{
 			_stamina -= StaminaDrainRateRun * delta;
 			if (_stamina < 0.0f)
 				_stamina = 0.0f;
 			
-			// Reset regen delay timer when actively running
 			_staminaEmptyTimer = StaminaRegenDelay;
 		}
-		// Drain stamina while attacking
 		else if (_isAttacking)
 		{
-			// Attack drains are handled in DrainStaminaForAttack()
-			// Just prevent regen during attack
 			_staminaEmptyTimer = StaminaRegenDelay;
 		}
-		// Regenerate stamina only when WALKING/IDLE (not running, not attacking)
 		else
 		{
-			// Decrease the empty timer (fatigue delay before regen)
 			if (_staminaEmptyTimer > 0.0f)
 			{
 				_staminaEmptyTimer -= delta;
 			}
 			
-			// Only regen if delay has passed AND not running AND not attacking
 			if (_staminaEmptyTimer <= 0.0f && !isRunning && !_isAttacking)
 			{
 				_stamina += StaminaRegenRate * delta;
@@ -831,13 +852,11 @@ public partial class Player3D : CharacterBody3D
 			}
 		}
 
-		// Clamp stamina
 		if (_stamina < 0.0f)
 			_stamina = 0.0f;
 		if (_stamina > MaxStamina)
 			_stamina = MaxStamina;
 
-		// Update UI
 		if (_staminaBar != null)
 			_staminaBar.Value = _stamina;
 
@@ -856,7 +875,6 @@ public partial class Player3D : CharacterBody3D
 		if (_stamina < 0.0f)
 			_stamina = 0.0f;
 
-		// Reset regen delay after attack so stamina can't regen immediately
 		_staminaEmptyTimer = StaminaRegenDelay;
 
 		if (_staminaBar != null)
@@ -876,21 +894,16 @@ public partial class Player3D : CharacterBody3D
 	{
 		_isGameOver = true;
 		SetPhysicsProcess(false);
-		// Don't disable all input - we need to detect Enter key for restart!
-		// SetProcessInput(false);
-		
 		
 		ShowGameOverUI();
 	}
 
 	private void ShowGameOverUI()
 	{
-		// Create canvas layer for game over UI (add to scene, not root)
 		CanvasLayer canvasLayer = new CanvasLayer();
 		canvasLayer.Layer = 200;
-		AddChild(canvasLayer);  // Add to Player node instead of tree root
+		AddChild(canvasLayer);
 
-		// Create dark background
 		ColorRect background = new ColorRect();
 		background.Color = new Color(0, 0, 0, 0.7f);
 		background.AnchorLeft = 0.0f;
@@ -899,7 +912,6 @@ public partial class Player3D : CharacterBody3D
 		background.AnchorBottom = 1.0f;
 		canvasLayer.AddChild(background);
 
-		// Create container for text and button
 		VBoxContainer container = new VBoxContainer();
 		container.AnchorLeft = 0.25f;
 		container.AnchorTop = 0.3f;
@@ -908,21 +920,18 @@ public partial class Player3D : CharacterBody3D
 		container.Alignment = BoxContainer.AlignmentMode.Center;
 		canvasLayer.AddChild(container);
 
-		// Game Over title
 		Label titleLabel = new Label();
 		titleLabel.Text = "GAME OVER";
 		titleLabel.AddThemeColorOverride("font_color", Colors.Red);
 		titleLabel.AddThemeFontSizeOverride("font_size", 80);
 		container.AddChild(titleLabel);
 
-		// Health status
 		Label statusLabel = new Label();
 		statusLabel.Text = "You died!";
 		statusLabel.AddThemeColorOverride("font_color", Colors.White);
 		statusLabel.AddThemeFontSizeOverride("font_size", 40);
 		container.AddChild(statusLabel);
 
-		// Restart button
 		Button restartButton = new Button();
 		restartButton.Text = "Restart Game";
 		restartButton.CustomMinimumSize = new Vector2(300, 80);
@@ -930,7 +939,6 @@ public partial class Player3D : CharacterBody3D
 		restartButton.Pressed += () => RestartGame();
 		container.AddChild(restartButton);
 
-		// Hint text
 		Label hintLabel = new Label();
 		hintLabel.Text = "or Press ENTER";
 		hintLabel.AddThemeColorOverride("font_color", Colors.Yellow);
@@ -942,13 +950,11 @@ public partial class Player3D : CharacterBody3D
 
 	private void RestartGame()
 	{
-		// Clean up the UI before reloading
 		if (_gameOverUI != null && IsInstanceValid(_gameOverUI))
 		{
 			_gameOverUI.QueueFree();
 		}
 
-		// Reload the scene
 		GetTree().ReloadCurrentScene();
 	}
 }

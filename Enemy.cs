@@ -15,7 +15,7 @@ public partial class Enemy : CharacterBody3D
 	[Export] public float KnockbackDamping = 0.88f;
 	[Export] public float HealthBarHeightOffset = 2.5f;
 	[Export] public float SpawnInvulnerabilityTime = 0.5f;
-	[Export] public float DamageToPlayer = 10.0f;  // Damage per hit
+	[Export] public float DamageToPlayer = 15.0f;  // Damage per hit (increased for balance)
 	[Export] public float AttackCooldown = 0.8f;  // Seconds between attacks (faster!)
 
 	private const string PlayerGroup = "player";
@@ -106,7 +106,13 @@ public partial class Enemy : CharacterBody3D
 		// Smooth acceleration-based movement
 		Vector3 horizontalVelocity = new Vector3(_velocity.X, 0, _velocity.Z);
 
-		if (shouldChase && !toPlayer.IsZeroApprox())
+		// NEW: Stop moving completely while attacking
+		if (_isAttacking)
+		{
+			horizontalVelocity = Vector3.Zero;
+			SetWalking(false);
+		}
+		else if (shouldChase && !toPlayer.IsZeroApprox())
 		{
 			Vector3 direction = toPlayer.Normalized();
 			Vector3 desiredVelocity = direction * Speed;
@@ -256,28 +262,39 @@ public partial class Enemy : CharacterBody3D
 
 			// Create or get the animation library
 			AnimationLibrary library = null;
+			
+			// Try to get existing library
 			try
 			{
 				library = _animPlayer.GetAnimationLibrary("EnemyAnims");
+				if (library == null)
+					throw new System.Exception("Library is null");
 			}
-			catch
+			catch (System.Exception)
 			{
-				library = null;
+				// Library doesn't exist or failed, create new one
+				try
+				{
+					library = new AnimationLibrary();
+					_animPlayer.AddAnimationLibrary("EnemyAnims", library);
+				}
+				catch (System.Exception)
+				{
+					// If we can't create library, just return empty
+					return "";
+				}
 			}
 
-			if (library == null)
+			if (library != null)
 			{
-				library = new AnimationLibrary();
-				_animPlayer.AddAnimationLibrary("EnemyAnims", library);
+				// Add attack animation to library
+				library.AddAnimation("Attack", attackAnimation);
+				return "EnemyAnims/Attack";
 			}
-
-			// Add attack animation to library
-			library.AddAnimation("Attack", attackAnimation);
-			string attackAnimPath = "EnemyAnims/Attack";
 			
-			return attackAnimPath;
+			return "";
 		}
-		catch (System.Exception e)
+		catch (System.Exception)
 		{
 			return "";
 		}
@@ -607,21 +624,19 @@ public partial class Enemy : CharacterBody3D
 					float damageDelay = animDuration * 0.3f;
 					GetTree().CreateTimer(damageDelay).Timeout += () =>
 					{
-						if (IsInstanceValid(player) && IsInstanceValid(_player))
+						// Check if BOTH enemy and player are still valid
+						if (!IsInstanceValid(this) || !IsInstanceValid(player) || !IsInstanceValid(_player))
+							return;
+						
+						// Check current distance - MUST stay close!
+						Vector3 currentPosition = _player.GlobalPosition;
+						float currentDistance = (currentPosition - GlobalPosition).Length();
+						
+						// Only damage if player is STILL in range (max 0.5 units away from where they were)
+						// This prevents hitting from far away even if they were close when attack started
+						if (currentDistance <= initialDistance + 0.5f && currentDistance <= StopDistance + 0.5f)
 						{
-							// Check current distance - MUST be close!
-							Vector3 currentPosition = _player.GlobalPosition;
-							float currentDistance = (currentPosition - GlobalPosition).Length();
-							
-							// Only damage if player is STILL close (within attack range)
-							// Strict check - must be at original attack distance!
-							if (currentDistance <= StopDistance + 0.3f)
-							{
-								player.PlayerTakeDamage(DamageToPlayer);
-							}
-							else
-							{
-							}
+							player.PlayerTakeDamage(DamageToPlayer);
 						}
 					};
 
