@@ -58,8 +58,8 @@ public partial class Enemy : CharacterBody3D
 			_animPlayer.RootNode = _animPlayer.GetParent().GetPath();
 			_walkAnim = ResolveWalkAnimation(_animPlayer);
 			
-			// Load and setup death animation
-			SetupDeathAnimation();
+			// Death animation disabled - will implement differently later
+			// SetupDeathAnimation();
 		}
 
 		// Find HitBox
@@ -439,36 +439,9 @@ public partial class Enemy : CharacterBody3D
 
 	private void Die()
 	{
-		// Disable physics and movement
 		SetPhysicsProcess(false);
-		
-		// Spawn new enemies first
 		SpawnRespawnEnemies();
-		
-		// Play death animation
-		if (_animPlayer != null && !string.IsNullOrEmpty(_deathAnim))
-		{
-			GD.Print($"[Death] Playing animation: {_deathAnim}");
-			_animPlayer.Play(_deathAnim);
-			
-			// Wait for animation to finish before removing
-			try
-			{
-				float animationLength = (float)_animPlayer.GetAnimation(_deathAnim).Length;
-				GD.Print($"[Death] Animation length: {animationLength}s");
-				GetTree().CreateTimer(animationLength).Timeout += () => QueueFree();
-			}
-			catch (System.Exception e)
-			{
-				GD.PrintErr($"[Death] Error getting animation length: {e.Message}");
-				QueueFree();
-			}
-		}
-		else
-		{
-			GD.Print($"[Death] No death animation found. _animPlayer={_animPlayer != null}, _deathAnim='{_deathAnim}'");
-			QueueFree();
-		}
+		QueueFree();
 	}
 
 	private void SpawnRespawnEnemies()

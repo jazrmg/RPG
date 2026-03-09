@@ -33,6 +33,23 @@ public partial class Player3D : CharacterBody3D
 	
 	[Export] public float SlashDamage = 25.0f;
 	[Export] public float SlashKnockback = 10.0f;
+	
+	[Export] public float MaxPlayerHealth = 100.0f;
+
+	// Stamina system
+	[Export] public float MaxStamina = 100.0f;
+	[Export] public float StaminaDrainRateRun = 30.0f;  // Per second while running
+	[Export] public float StaminaDrainRateAttack = 25.0f;  // Per attack
+	[Export] public float StaminaRegenRate = 15.0f;  // Per second while not running
+	
+	// Health system
+	private float _playerHealth = 100.0f;
+	private ProgressBar _playerHealthBar;
+	private Label _playerHealthLabel;
+	
+	private float _stamina = 100.0f;
+	private ProgressBar _staminaBar;
+	private Label _staminaLabel;
 
 	private const string PlayerGroup = "player";
 
@@ -93,6 +110,7 @@ public partial class Player3D : CharacterBody3D
 	private float _coyoteCounter = 0.0f;
 	private float _jumpBufferCounter = 0.0f;
 	private bool _isJumping = false;
+	private bool _wasInAir = false;  // For landing detection
 
 	// Attack tracking
 	private HashSet<Enemy> _hitEnemiesThisAttack = new HashSet<Enemy>();
@@ -131,6 +149,7 @@ public partial class Player3D : CharacterBody3D
 		InitializeAnimations();
 		ResolveSwordNodes();
 		SetSwordVisible(false);
+		CreatePlayerHealthBar();
 
 		PlayAnimationState(AnimState.Idle, _idleAnim);
 	}
@@ -191,6 +210,10 @@ public partial class Player3D : CharacterBody3D
 		// Apply physics
 		bool isGrounded = IsOnFloor();
 		
+		// Detect landing (just touched ground after being in air)
+		bool justLanded = isGrounded && _wasInAir;
+		_wasInAir = !isGrounded;
+		
 		if (isGrounded)
 		{
 			_coyoteCounter = CoyoteTime;
@@ -216,8 +239,11 @@ public partial class Player3D : CharacterBody3D
 		Velocity = _velocity;
 		MoveAndSlide();
 
+		// Update stamina
+		UpdateStamina(isRunning, dt);
+
 		UpdateCameraRig();
-		UpdateAnimationState(moveDirection, isRunning, _isJumping);
+		UpdateAnimationState(moveDirection, isRunning, _isJumping, justLanded);
 
 		_attackCooldownTimer -= dt;
 		_isJumping = false;
@@ -235,6 +261,10 @@ public partial class Player3D : CharacterBody3D
 
 	private void HandleMovement(Vector3 desiredDirection, bool isRunning, bool isGrounded, float delta)
 	{
+		// Can't run without stamina
+		if (isRunning && !CanRun())
+			isRunning = false;
+
 		float maxSpeed = isRunning ? MaxRunSpeed : MaxGroundSpeed;
 		float acceleration = isRunning ? RunAcceleration : GroundAcceleration;
 		float deceleration = isRunning ? RunDeceleration : GroundDeceleration;
@@ -524,9 +554,14 @@ public partial class Player3D : CharacterBody3D
 		if (_attackCooldownTimer > 0.0f)
 			return;
 
+		// Check if player has stamina for attack
+		if (!HasStaminaForAction(StaminaDrainRateAttack))
+			return;
+
 		_isAttacking = true;
 		_hitEnemiesThisAttack.Clear();
 		_attackCooldownTimer = AttackCooldown;
+		DrainStaminaForAttack();  // Drain stamina on attack
 		PlayAnimationState(AnimState.SwordSlash, _swordSlashAnim);
 	}
 
@@ -564,7 +599,7 @@ public partial class Player3D : CharacterBody3D
 		}
 	}
 
-	private void UpdateAnimationState(Vector3 moveDirection, bool isRunning, bool jumpedThisFrame)
+	private void UpdateAnimationState(Vector3 moveDirection, bool isRunning, bool jumpedThisFrame, bool justLanded)
 	{
 		if (_isAttacking)
 			return;
@@ -572,6 +607,16 @@ public partial class Player3D : CharacterBody3D
 		if (_isSitting)
 		{
 			PlayAnimationState(AnimState.Sit, _sitAnim);
+			return;
+		}
+
+		// Immediate idle on landing (fixes sliding)
+		if (justLanded && !jumpedThisFrame)
+		{
+			if (_isSwordEquipped)
+				PlayAnimationState(AnimState.SwordIdle, _swordIdleAnim);
+			else
+				PlayAnimationState(AnimState.Idle, _idleAnim);
 			return;
 		}
 
@@ -612,4 +657,149 @@ public partial class Player3D : CharacterBody3D
 		_animPlayer.Play(animationName);
 		_currentAnimState = state;
 	}
+
+	private void CreatePlayerHealthBar()
+	{
+		_playerHealth = MaxPlayerHealth;
+		_stamina = MaxStamina;
+
+		// Create canvas layer for UI
+		CanvasLayer canvasLayer = new CanvasLayer();
+		canvasLayer.Layer = 100;
+		AddChild(canvasLayer);
+
+		// Create container
+		Control container = new Control();
+		container.MouseFilter = Control.MouseFilterEnum.Ignore;
+		container.AnchorLeft = 0.0f;
+		container.AnchorTop = 0.0f;
+		container.AnchorRight = 1.0f;
+		container.AnchorBottom = 1.0f;
+		canvasLayer.AddChild(container);
+
+		// Create health bar
+		_playerHealthBar = new ProgressBar();
+		_playerHealthBar.MinValue = 0.0f;
+		_playerHealthBar.MaxValue = MaxPlayerHealth;
+		_playerHealthBar.Value = _playerHealth;
+		_playerHealthBar.AnchorLeft = 0.0f;
+		_playerHealthBar.AnchorTop = 0.0f;
+		_playerHealthBar.AnchorRight = 0.3f;
+		_playerHealthBar.AnchorBottom = 0.0f;
+		_playerHealthBar.OffsetLeft = 10.0f;
+		_playerHealthBar.OffsetTop = 10.0f;
+		_playerHealthBar.OffsetRight = -10.0f;
+		_playerHealthBar.OffsetBottom = 30.0f;
+		_playerHealthBar.MouseFilter = Control.MouseFilterEnum.Ignore;
+		_playerHealthBar.SelfModulate = new Color(0.2f, 1.0f, 0.2f, 0.8f);  // Green
+		container.AddChild(_playerHealthBar);
+
+		// Create health label
+		_playerHealthLabel = new Label();
+		_playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {MaxPlayerHealth:F0}";
+		_playerHealthLabel.AnchorLeft = 0.0f;
+		_playerHealthLabel.AnchorTop = 0.0f;
+		_playerHealthLabel.AnchorRight = 0.3f;
+		_playerHealthLabel.AnchorBottom = 0.0f;
+		_playerHealthLabel.OffsetLeft = 10.0f;
+		_playerHealthLabel.OffsetTop = 35.0f;
+		_playerHealthLabel.OffsetRight = -10.0f;
+		_playerHealthLabel.OffsetBottom = 55.0f;
+		_playerHealthLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+		_playerHealthLabel.AddThemeColorOverride("font_color", Colors.White);
+		container.AddChild(_playerHealthLabel);
+
+		// Create stamina bar
+		_staminaBar = new ProgressBar();
+		_staminaBar.MinValue = 0.0f;
+		_staminaBar.MaxValue = MaxStamina;
+		_staminaBar.Value = _stamina;
+		_staminaBar.AnchorLeft = 0.0f;
+		_staminaBar.AnchorTop = 0.0f;
+		_staminaBar.AnchorRight = 0.3f;
+		_staminaBar.AnchorBottom = 0.0f;
+		_staminaBar.OffsetLeft = 10.0f;
+		_staminaBar.OffsetTop = 60.0f;
+		_staminaBar.OffsetRight = -10.0f;
+		_staminaBar.OffsetBottom = 80.0f;
+		_staminaBar.MouseFilter = Control.MouseFilterEnum.Ignore;
+		_staminaBar.SelfModulate = new Color(1.0f, 1.0f, 0.2f, 0.8f);  // Yellow
+		container.AddChild(_staminaBar);
+
+		// Create stamina label
+		_staminaLabel = new Label();
+		_staminaLabel.Text = $"Stamina: {_stamina:F0} / {MaxStamina:F0}";
+		_staminaLabel.AnchorLeft = 0.0f;
+		_staminaLabel.AnchorTop = 0.0f;
+		_staminaLabel.AnchorRight = 0.3f;
+		_staminaLabel.AnchorBottom = 0.0f;
+		_staminaLabel.OffsetLeft = 10.0f;
+		_staminaLabel.OffsetTop = 85.0f;
+		_staminaLabel.OffsetRight = -10.0f;
+		_staminaLabel.OffsetBottom = 105.0f;
+		_staminaLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+		_staminaLabel.AddThemeColorOverride("font_color", Colors.White);
+		container.AddChild(_staminaLabel);
+	}
+
+	public void PlayerTakeDamage(float damage)
+	{
+		_playerHealth -= damage;
+		if (_playerHealth < 0.0f)
+			_playerHealth = 0.0f;
+
+		if (_playerHealthBar != null)
+			_playerHealthBar.Value = _playerHealth;
+
+		if (_playerHealthLabel != null)
+			_playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {MaxPlayerHealth:F0}";
+	}
+
+	private void UpdateStamina(bool isRunning, float delta)
+	{
+		if (isRunning && IsOnFloor())
+		{
+			// Drain stamina while running
+			_stamina -= StaminaDrainRateRun * delta;
+			if (_stamina < 0.0f)
+				_stamina = 0.0f;
+		}
+		else
+		{
+			// Regenerate stamina when not running
+			_stamina += StaminaRegenRate * delta;
+			if (_stamina > MaxStamina)
+				_stamina = MaxStamina;
+		}
+
+		if (_staminaBar != null)
+			_staminaBar.Value = _stamina;
+
+		if (_staminaLabel != null)
+			_staminaLabel.Text = $"Stamina: {_stamina:F0} / {MaxStamina:F0}";
+	}
+
+	private bool HasStaminaForAction(float cost = 0.0f)
+	{
+		return _stamina >= cost;
+	}
+
+	private void DrainStaminaForAttack()
+	{
+		_stamina -= StaminaDrainRateAttack;
+		if (_stamina < 0.0f)
+			_stamina = 0.0f;
+
+		if (_staminaBar != null)
+			_staminaBar.Value = _stamina;
+
+		if (_staminaLabel != null)
+			_staminaLabel.Text = $"Stamina: {_stamina:F0} / {MaxStamina:F0}";
+	}
+
+	public float GetStamina() => _stamina;
+	public bool CanRun() => _stamina > 0.0f;
+	
+	public float GetPlayerHealth() => _playerHealth;
+	public bool IsPlayerAlive() => _playerHealth > 0.0f;
 }
