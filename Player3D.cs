@@ -40,7 +40,8 @@ public partial class Player3D : CharacterBody3D
 	[Export] public float MaxStamina = 100.0f;
 	[Export] public float StaminaDrainRateRun = 30.0f;  // Per second while running
 	[Export] public float StaminaDrainRateAttack = 25.0f;  // Per attack
-	[Export] public float StaminaRegenRate = 15.0f;  // Per second while not running
+	[Export] public float StaminaRegenRate = 15.0f;  // Per second while walking/idle
+	[Export] public float StaminaRegenDelay = 0.5f;  // Delay before regen starts (realistic fatigue)
 	
 	// Health system
 	private float _playerHealth = 100.0f;
@@ -50,6 +51,7 @@ public partial class Player3D : CharacterBody3D
 	private float _stamina = 100.0f;
 	private ProgressBar _staminaBar;
 	private Label _staminaLabel;
+	private float _staminaEmptyTimer = 0.0f;  // Cooldown before stamina can regen
 
 	private const string PlayerGroup = "player";
 
@@ -211,6 +213,15 @@ public partial class Player3D : CharacterBody3D
 			: Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
 
 		bool isRunning = inputDir != Vector2.Zero && Input.IsKeyPressed(Key.Shift);
+		
+		// Can't run without stamina - FORCE STOP if stamina is 0
+		if (isRunning && !CanRun())
+			isRunning = false;
+		
+		// If stamina just ran out (was running, now empty), force walk
+		if (_stamina <= 0.0f && isRunning)
+			isRunning = false;
+		
 		Vector3 moveDirection = GetCameraRelativeDirection(inputDir);
 
 		// Handle jump input
@@ -273,10 +284,6 @@ public partial class Player3D : CharacterBody3D
 
 	private void HandleMovement(Vector3 desiredDirection, bool isRunning, bool isGrounded, float delta)
 	{
-		// Can't run without stamina
-		if (isRunning && !CanRun())
-			isRunning = false;
-
 		float maxSpeed = isRunning ? MaxRunSpeed : MaxGroundSpeed;
 		float acceleration = isRunning ? RunAcceleration : GroundAcceleration;
 		float deceleration = isRunning ? RunDeceleration : GroundDeceleration;
@@ -789,21 +796,48 @@ public partial class Player3D : CharacterBody3D
 
 	private void UpdateStamina(bool isRunning, float delta)
 	{
+		// Drain stamina while running
 		if (isRunning && IsOnFloor())
 		{
-			// Drain stamina while running
 			_stamina -= StaminaDrainRateRun * delta;
 			if (_stamina < 0.0f)
 				_stamina = 0.0f;
+			
+			// Reset regen delay timer when actively running
+			_staminaEmptyTimer = StaminaRegenDelay;
 		}
+		// Drain stamina while attacking
+		else if (_isAttacking)
+		{
+			// Attack drains are handled in DrainStaminaForAttack()
+			// Just prevent regen during attack
+			_staminaEmptyTimer = StaminaRegenDelay;
+		}
+		// Regenerate stamina only when WALKING/IDLE (not running, not attacking)
 		else
 		{
-			// Regenerate stamina when not running
-			_stamina += StaminaRegenRate * delta;
-			if (_stamina > MaxStamina)
-				_stamina = MaxStamina;
+			// Decrease the empty timer (fatigue delay before regen)
+			if (_staminaEmptyTimer > 0.0f)
+			{
+				_staminaEmptyTimer -= delta;
+			}
+			
+			// Only regen if delay has passed AND not running AND not attacking
+			if (_staminaEmptyTimer <= 0.0f && !isRunning && !_isAttacking)
+			{
+				_stamina += StaminaRegenRate * delta;
+				if (_stamina > MaxStamina)
+					_stamina = MaxStamina;
+			}
 		}
 
+		// Clamp stamina
+		if (_stamina < 0.0f)
+			_stamina = 0.0f;
+		if (_stamina > MaxStamina)
+			_stamina = MaxStamina;
+
+		// Update UI
 		if (_staminaBar != null)
 			_staminaBar.Value = _stamina;
 
@@ -821,6 +855,9 @@ public partial class Player3D : CharacterBody3D
 		_stamina -= StaminaDrainRateAttack;
 		if (_stamina < 0.0f)
 			_stamina = 0.0f;
+
+		// Reset regen delay after attack so stamina can't regen immediately
+		_staminaEmptyTimer = StaminaRegenDelay;
 
 		if (_staminaBar != null)
 			_staminaBar.Value = _stamina;
