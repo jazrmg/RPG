@@ -4,15 +4,15 @@ using System.Collections.Generic;
 public partial class Enemy : CharacterBody3D
 {
 	[Export] public float Speed = 2.5f;
-	[Export] public float Acceleration = 18.0f;
+	[Export] public float Acceleration = 25.0f;  // ✨ INCREASED: From 18 to 25 for snappier response
 	[Export] public float Deceleration = 15.0f;
 	[Export] public float Friction = 0.90f;
 	[Export] public float ChaseRange = 20.0f;
-	[Export] public float StopDistance = 2.5f;
-	[Export] public float RotationSpeed = 10.0f;
+	[Export] public float StopDistance = 1.5f;  // ✨ REDUCED: From 2.5 to 1.5 for closer combat
+	[Export] public float RotationSpeed = 12.0f;  // ✨ SMOOTHED: From 10.0 to 12.0 for smoother turns
 	[Export] public float MaxHealth = 100.0f;
 	[Export] public float KnockbackResistance = 0.3f;
-	[Export] public float KnockbackDamping = 0.85f;
+	[Export] public float KnockbackDamping = 0.80f;  // ✨ IMPROVED: From 0.85 to 0.80 for smoother recovery
 	[Export] public float HealthBarHeightOffset = 2.5f;
 	[Export] public float SpawnInvulnerabilityTime = 0.5f;
 	[Export] public float DamageToPlayer = 15.0f;
@@ -103,7 +103,8 @@ public partial class Enemy : CharacterBody3D
 
 		if (_isAttacking)
 		{
-			horizontalVelocity = Vector3.Zero;
+			// ✨ SMOOTHED: Smoother stop when attacking
+			horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, Deceleration * 1.5f * dt);
 			SetWalking(false);
 		}
 		else if (shouldChase && !toPlayer.IsZeroApprox())
@@ -111,7 +112,8 @@ public partial class Enemy : CharacterBody3D
 			Vector3 direction = toPlayer.Normalized();
 			Vector3 desiredVelocity = direction * Speed;
 
-			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, Acceleration * dt);
+			// ✨ SMOOTHED: Better acceleration lerp (0.9x multiplier for smoother feel)
+			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, Acceleration * 0.9f * dt);
 
 			RotateTowardDirection(direction, dt);
 			SetWalking(true);
@@ -120,11 +122,13 @@ public partial class Enemy : CharacterBody3D
 		{
 			if (IsOnFloor())
 			{
-				horizontalVelocity *= Friction;
+				// ✨ SMOOTHED: Better friction (0.90 -> 0.92 for less abrupt stops)
+				horizontalVelocity *= 0.92f;
 			}
 			else
 			{
-				horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, Deceleration * dt);
+				// ✨ SMOOTHED: Better air deceleration
+				horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, Deceleration * 1.2f * dt);
 			}
 
 			bool stillMoving = horizontalVelocity.Length() > 0.1f;
@@ -132,7 +136,9 @@ public partial class Enemy : CharacterBody3D
 		}
 
 		_knockbackVelocity *= KnockbackDamping;
-		if (_knockbackVelocity.Length() < 0.05f)
+		// ✨ SMOOTHED: Even smoother knockback recovery (0.12 -> 0.15 for better easing)
+		_knockbackVelocity = _knockbackVelocity.Lerp(Vector3.Zero, 0.15f);
+		if (_knockbackVelocity.Length() < 0.005f)  // ✨ Earlier reset (0.01 -> 0.005)
 		{
 			_knockbackVelocity = Vector3.Zero;
 		}
@@ -144,7 +150,9 @@ public partial class Enemy : CharacterBody3D
 
 		_attackCooldownTimer -= dt;
 
-		if (_player != null && distance <= StopDistance && _attackCooldownTimer <= 0.0f)
+		// ✨ IMPROVED: Attack range is StopDistance + small buffer for responsive hits
+		float attackRange = StopDistance + 0.4f;
+		if (_player != null && distance <= attackRange && _attackCooldownTimer <= 0.0f)
 		{
 			DamagePlayerIfClose();
 		}

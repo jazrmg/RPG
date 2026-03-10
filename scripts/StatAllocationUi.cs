@@ -12,9 +12,8 @@ public partial class StatAllocationUI : CanvasLayer
 	private Label _levelLabel;
 	private HBoxContainer _buttonContainer;
 
-	// ✨ NEW: Key press tracking
+	// ✨ NEW: Key press tracking (only Z now)
 	private bool _lastZPressed = false;
-	private bool _lastXPressed = false;
 
 	private readonly string[] _statNames = { "Health", "Damage", "AttackSpeed", "Stamina", "Dodge", "Crit" };
 	private readonly Color[] _statColors = new Color[]
@@ -176,15 +175,9 @@ public partial class StatAllocationUI : CanvasLayer
 
 	public override void _Process(double delta)
 	{
-		// ✨ NEW: Press Z or X to toggle stats panel
-		if (Input.IsActionJustPressed("ui_select"))  // ✨ Z key (or could use custom input)
-		{
-			ToggleStatsPanel();
-		}
+		// ✨ HOTKEY: Only Z opens stats (X key removed)
 		
-		// Alternative: Use custom input map for X key
-		// You can add custom input in Project Settings > Input Map
-		// For now, we'll check for 'z' key directly
+		// Check for Z key press
 		if (Input.IsKeyPressed(Key.Z))
 		{
 			if (!_lastZPressed)  // Only toggle once per press
@@ -196,20 +189,6 @@ public partial class StatAllocationUI : CanvasLayer
 		else
 		{
 			_lastZPressed = false;
-		}
-		
-		// Check for X key
-		if (Input.IsKeyPressed(Key.X))
-		{
-			if (!_lastXPressed)  // Only toggle once per press
-			{
-				ToggleStatsPanel();
-				_lastXPressed = true;
-			}
-		}
-		else
-		{
-			_lastXPressed = false;
 		}
 	}
 }

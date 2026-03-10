@@ -29,9 +29,9 @@ public partial class SkillUIManager : Control
 		_player = GetTree().Root.GetChild(0).FindChild("Player3D", true, false) as Player3D;
 		if (_player == null) { GD.PrintErr("[SkillUI] Player3D not found!"); return; }
 
-		// ✨ NEW: Find StatAllocationUI
-		_statsUI = GetTree().Root.FindChild("StatAllocationUI", true, false) as StatAllocationUI;
-		if (_statsUI == null) { GD.PrintErr("[SkillUI] StatAllocationUI not found!"); }
+		// ✨ FIXED: Get StatsUI from Player3D directly instead of searching
+		_statsUI = _player.StatsUI;
+		if (_statsUI == null) { GD.PrintErr("[SkillUI] StatsUI not found in Player3D!"); }
 
 		AnchorLeft = AnchorTop = 0.0f;
 		AnchorRight = AnchorBottom = 1.0f;

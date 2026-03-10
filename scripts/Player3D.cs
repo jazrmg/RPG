@@ -10,7 +10,7 @@ public partial class Player3D : CharacterBody3D
 	[Export] public float RunAcceleration = 30.0f;
 	[Export] public float JumpForce = 4.0f;
 	[Export] public float MouseSensitivity = 0.3f;
-	[Export] public float RotationSpeed = 12.0f;
+	[Export] public float RotationSpeed = 15.0f;  // ✨ SMOOTHED: From 12.0 to 15.0 for smoother turns
 	[Export] public float CoyoteTime = 0.12f;
 	[Export] public float JumpBufferTime = 0.12f;
 
@@ -75,6 +75,9 @@ public partial class Player3D : CharacterBody3D
 
 	// ✨ LEVELING SYSTEM
 	public LevelingSystem LevelingSystem { get; private set; }
+
+	// ✨ NEW: Public stats UI reference for SkillUIManager
+	public StatAllocationUI StatsUI { get; private set; }
 
 	private Dictionary<string, string> _animationCache = new Dictionary<string, string>();
 	private string _dodgeSlideAnim = "";  // ✨ NEW: Store dodge animation name
@@ -155,6 +158,7 @@ public partial class Player3D : CharacterBody3D
 
 		// ✨ NEW: Create and add StatAllocationUI (level-up popup)
 		var statUI = new StatAllocationUI();
+		StatsUI = statUI;  // ✨ Expose for SkillUIManager to access
 		AddChild(statUI);  // ✨ FIXED: Add to Player3D instead of Root
 		// ✨ Use CallDeferred to initialize AFTER scene tree is ready
 		statUI.CallDeferred(nameof(StatAllocationUI.InitializeDirectly), LevelingSystem);
@@ -351,7 +355,7 @@ public partial class Player3D : CharacterBody3D
 		}
 
 		// ✨ AUTO ATTACK LOGIC - Aggressive when in range!
-		if (distanceToEnemy <= 3.8f)  // Slightly larger range for more aggression
+		if (distanceToEnemy <= 3.5f)  // ✨ IMPROVED: More responsive range (was 3.8, now 3.5)
 		{
 			_autoAttackTimer -= delta;
 
@@ -727,15 +731,18 @@ public partial class Player3D : CharacterBody3D
 		}
 		else if (desiredDirection != Vector3.Zero)
 		{
-			_lastInputDirection = _lastInputDirection.Lerp(desiredDirection, 0.1f);
+			// ✨ SMOOTHED: Better input direction lerping (0.1 -> 0.08 for smoother feel)
+			_lastInputDirection = _lastInputDirection.Lerp(desiredDirection, 0.08f);
 			Vector3 desiredVelocity = _lastInputDirection * maxSpeed;
 			float speed = horizontalVelocity.Length();
 			float desiredSpeed = desiredVelocity.Length();
 
 			if (speed < desiredSpeed)
-				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, acceleration * delta);
+				// ✨ SMOOTHED: Improved acceleration lerp for smoother speedup
+				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, acceleration * 0.9f * delta);
 			else
-				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, (acceleration * 0.5f) * delta);
+				// ✨ SMOOTHED: Better deceleration curve
+				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, (acceleration * 0.4f) * delta);
 
 			if (!_isDodgeRolling)
 				RotateTowardDirection(desiredDirection, delta);
@@ -743,7 +750,8 @@ public partial class Player3D : CharacterBody3D
 		else
 		{
 			_lastInputDirection = Vector3.Zero;
-			horizontalVelocity *= isGrounded ? 0.92f : 0.85f;
+			// ✨ SMOOTHED: Better friction application (0.92 -> 0.94 for smoother stops)
+			horizontalVelocity *= isGrounded ? 0.94f : 0.88f;
 		}
 
 		_velocity.X = horizontalVelocity.X;
@@ -1049,7 +1057,8 @@ public partial class Player3D : CharacterBody3D
 
 		var space = GetWorld3D().DirectSpaceState;
 		var query = new PhysicsShapeQueryParameters3D();
-		query.Shape = new BoxShape3D { Size = Vector3.One * 2.0f };
+		// ✨ IMPROVED: Slightly larger hit box for more responsive feels (2.0 -> 2.3)
+		query.Shape = new BoxShape3D { Size = Vector3.One * 2.3f };
 		query.Transform = _swordRoot.GlobalTransform;
 
 		foreach (var result in space.IntersectShape(query))
@@ -1137,7 +1146,18 @@ public partial class Player3D : CharacterBody3D
 	{
 		if (!_animationCache.TryGetValue(name, out string path)) return;
 		if (_animPlayer.CurrentAnimation != path)
+		{
 			_animPlayer.Play(path);
+			// ✨ IMPROVED: Speed up attack animations slightly for snappier feel
+			if (name.Contains("Attack") || name.Contains("Slash"))
+			{
+				_animPlayer.SpeedScale = 1.15f;  // ✨ 15% faster attacks
+			}
+			else
+			{
+				_animPlayer.SpeedScale = 1.0f;   // ✨ Normal speed for other animations
+			}
+		}
 	}
 
 	private void CreatePlayerHealthBar()
