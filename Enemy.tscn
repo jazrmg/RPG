@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://b2g5q2a5x57bp"]
 
-[ext_resource type="Script" uid="uid://bajthgk0kqoey" path="res://Enemy.cs" id="1_s7bn3"]
+[ext_resource type="Script" uid="uid://bajthgk0kqoey" path="res://scripts/Enemy.cs" id="1_s7bn3"]
 [ext_resource type="PackedScene" uid="uid://ckgn73uvytq5a" path="res://models/enemy/MonsterWalk.fbx" id="1_tt7e2"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_2vx13"]
