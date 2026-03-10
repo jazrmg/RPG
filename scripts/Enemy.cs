@@ -205,9 +205,17 @@ public partial class Enemy : CharacterBody3D
 		if (_animPlayer == null || string.IsNullOrEmpty(_walkAnim)) return;
 
 		if (walking)
+		{
 			_animPlayer.Play(_walkAnim);
+			// ✨ SMOOTHED: Snappier walk animation (1.1x speed)
+			_animPlayer.SpeedScale = 1.1f;
+		}
 		else
+		{
 			_animPlayer.Stop();
+			// ✨ SMOOTHED: Reset animation speed
+			_animPlayer.SpeedScale = 1.0f;
+		}
 	}
 
 	private string ResolveWalkAnimation(AnimationPlayer animationPlayer)
@@ -607,12 +615,13 @@ public partial class Enemy : CharacterBody3D
 			try
 			{
 				_animPlayer.Play(_attackAnim);
-				_animPlayer.SpeedScale = 1.5f;
+				// ✨ SMOOTHED: Even faster attacks (1.5 -> 1.6 for snappier feel)
+				_animPlayer.SpeedScale = 1.6f;
 
 				Animation attackAnimation = _animPlayer.GetAnimation(_attackAnim);
 				if (attackAnimation != null)
 				{
-					float animDuration = (float)attackAnimation.Length / 1.5f;
+					float animDuration = (float)attackAnimation.Length / 1.6f;
 					
 					float damageDelay = animDuration * 0.3f;
 					GetTree().CreateTimer(damageDelay).Timeout += () =>

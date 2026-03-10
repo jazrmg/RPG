@@ -8,11 +8,11 @@ public partial class Player3D : CharacterBody3D
 	[Export] public float MaxRunSpeed = 8.5f;
 	[Export] public float GroundAcceleration = 20.0f;
 	[Export] public float RunAcceleration = 30.0f;
-	[Export] public float JumpForce = 4.0f;
+	[Export] public float JumpForce = 4.3f;  // ✨ SMOOTHED: 4.0 → 4.3 for snappier jumps
 	[Export] public float MouseSensitivity = 0.3f;
 	[Export] public float RotationSpeed = 15.0f;  // ✨ SMOOTHED: From 12.0 to 15.0 for smoother turns
-	[Export] public float CoyoteTime = 0.12f;
-	[Export] public float JumpBufferTime = 0.12f;
+	[Export] public float CoyoteTime = 0.16f;  // ✨ SMOOTHED: 0.12 → 0.16 more forgiving
+	[Export] public float JumpBufferTime = 0.16f;  // ✨ SMOOTHED: 0.12 → 0.16 more forgiving
 
 	// COMBAT - LIGHT ATTACK
 	[Export] public float LightSlashDamage = 15.0f;
@@ -38,9 +38,9 @@ public partial class Player3D : CharacterBody3D
 	[Export] public float AttackModeWindowTime = 3.0f;
 
 	// DODGE ROLL
-	[Export] public float DodgeRollSpeed = 4.0f;  // ✨ Very short slide now
-	[Export] public float DodgeRollDuration = 0.5f;
-	[Export] public float DodgeRollCooldown = 0.8f;
+	[Export] public float DodgeRollSpeed = 4.2f;  // ✨ SMOOTHED: 4.0 → 4.2 for snappier rolls
+	[Export] public float DodgeRollDuration = 0.48f;  // ✨ SMOOTHED: Slightly faster
+	[Export] public float DodgeRollCooldown = 0.75f;  // ✨ SMOOTHED: 0.8 → 0.75 faster recovery
 	[Export] public float DodgeRollStaminaCost = 20.0f;
 
 	// HEALTH & STAMINA
@@ -128,6 +128,7 @@ public partial class Player3D : CharacterBody3D
 	private float _cameraYaw;
 	private float _cameraPitch;
 	private float _cameraHeightOffset = 1.5f;
+	private Vector3 _smoothCameraPos = Vector3.Zero;  // ✨ NEW: For smooth camera follow
 
 	public override void _Ready()
 	{
@@ -149,6 +150,7 @@ public partial class Player3D : CharacterBody3D
 		_cameraHeightOffset = _springArm.Position.Y;
 		_cameraYaw = Rotation.Y;
 		_cameraPitch = _springArm.Rotation.X;
+		_smoothCameraPos = GlobalPosition + Vector3.Up * _cameraHeightOffset;  // ✨ Initialize smooth camera
 		_springArm.TopLevel = true;
 
 		// ✨ NEW: Initialize leveling system
@@ -825,6 +827,8 @@ public partial class Player3D : CharacterBody3D
 			if (_animationCache.TryGetValue("DodgeSlide", out string dodgeAnimPath))
 			{
 				PlayAnimation("DodgeSlide");
+				// ✨ SMOOTHED: Faster dodge animation
+				_animPlayer.SpeedScale = 1.2f;
 				
 				// Get animation duration for more realistic timing
 				Animation dodgeAnim = _animPlayer.GetAnimation(dodgeAnimPath);
@@ -838,9 +842,11 @@ public partial class Player3D : CharacterBody3D
 						_isDodgeRolling = false;
 						_dodgeRollCooldownTimer = DodgeRollCooldown;
 						
-						// Smooth transition back to idle/walk
-						_velocity.X *= 0.7f;  // Reduce momentum smoothly
-						_velocity.Z *= 0.7f;
+						// ✨ SMOOTHED: Better momentum preservation (0.7 -> 0.75 for less loss)
+						_velocity.X *= 0.75f;
+						_velocity.Z *= 0.75f;
+						// ✨ SMOOTHED: Reset animation speed
+						_animPlayer.SpeedScale = 1.0f;
 					}
 				};
 			}
@@ -876,7 +882,11 @@ public partial class Player3D : CharacterBody3D
 
 	private void UpdateCameraRig()
 	{
-		_springArm.GlobalPosition = GlobalPosition + Vector3.Up * _cameraHeightOffset;
+		// ✨ SMOOTHED: Camera follows smoothly instead of snapping
+		Vector3 targetCamPos = GlobalPosition + Vector3.Up * _cameraHeightOffset;
+		_smoothCameraPos = _smoothCameraPos.Lerp(targetCamPos, 0.12f);  // ✨ Smooth follow
+		_springArm.GlobalPosition = _smoothCameraPos;
+		
 		_springArm.GlobalRotation = new Vector3(_cameraPitch, _cameraYaw, 0.0f);
 	}
 
@@ -934,6 +944,8 @@ public partial class Player3D : CharacterBody3D
 			{
 				_isAttacking = false;
 				_hitEnemiesThisAttack.Clear();
+				// ✨ SMOOTHED: Reset animation speed for faster recovery
+				_animPlayer.SpeedScale = 1.0f;
 			}
 			return;
 		}
