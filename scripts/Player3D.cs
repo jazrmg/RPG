@@ -155,9 +155,10 @@ public partial class Player3D : CharacterBody3D
 
 		// ✨ NEW: Create and add StatAllocationUI (level-up popup)
 		var statUI = new StatAllocationUI();
-		GetTree().Root.AddChild(statUI);
-		statUI.Initialize(LevelingSystem);  // ✨ Pass LevelingSystem reference directly!
-		GD.Print("[Player3D] ✅ StatAllocationUI initialized with LevelingSystem");
+		AddChild(statUI);  // ✨ FIXED: Add to Player3D instead of Root
+		// ✨ Use CallDeferred to initialize AFTER scene tree is ready
+		statUI.CallDeferred(nameof(StatAllocationUI.InitializeDirectly), LevelingSystem);
+		GD.Print("[Player3D] ✅ StatAllocationUI created and queued for initialization");
 
 		// ✨ Hide sword at start (not equipped yet)
 		if (_swordRoot != null)

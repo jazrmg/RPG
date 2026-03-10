@@ -23,7 +23,28 @@ public partial class StatAllocationUI : CanvasLayer
 		new Color(1f, 0.6f, 0.2f, 1)     // Orange - Crit
 	};
 
-	// ✨ NEW: Accept LevelingSystem as parameter
+	public override void _Ready()
+	{
+		Layer = 100;  // Above everything else
+		GD.Print("[StatAllocationUI] _Ready() called");
+		// Initialization will be called via InitializeDirectly() from Player3D using CallDeferred
+	}
+
+	// ✨ NEW: Called via CallDeferred from Player3D
+	public void InitializeDirectly(LevelingSystem levelingSystem)
+	{
+		GD.Print($"[StatAllocationUI] InitializeDirectly() called!");
+		
+		if (levelingSystem == null)
+		{
+			GD.PrintErr("[StatAllocationUI] ERROR: LevelingSystem is null!");
+			return;
+		}
+
+		Initialize(levelingSystem);
+	}
+
+	// ✨ Original Initialize method
 	public void Initialize(LevelingSystem levelingSystem)
 	{
 		GD.Print($"[StatAllocationUI] Initialize() called with LevelingSystem");
@@ -42,12 +63,6 @@ public partial class StatAllocationUI : CanvasLayer
 		GD.Print($"[StatAllocationUI] Connecting to LevelingSystem.LevelUp callback...");
 		_levelSystem.LevelUp += ShowLevelUpPanel;
 		GD.Print($"[StatAllocationUI] ✅ Connected! ShowLevelUpPanel will be called on level up");
-	}
-
-	public override void _Ready()
-	{
-		Layer = 100;  // Above everything else
-		// Initialization happens in Initialize() method instead
 	}
 
 	private void CreateUI()
