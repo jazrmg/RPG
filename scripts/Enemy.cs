@@ -254,17 +254,24 @@ public partial class Enemy : CharacterBody3D
 				return "";
 			}
 
+			// ✨ FIXED: Don't try to get library, just create new one if needed
 			AnimationLibrary library = null;
+			
+			// Try to get existing library, but don't catch exceptions - just create new
 			try
 			{
-				library = _animPlayer.GetAnimationLibrary("EnemyAnims");
+				if (_animPlayer.HasAnimationLibrary("EnemyAnims"))
+				{
+					library = _animPlayer.GetAnimationLibrary("EnemyAnims");
+				}
 			}
 			catch
 			{
-				// Animation library access failed - create new one (non-critical)
+				// If any error, we'll create a new one below
 				library = null;
 			}
 
+			// If library doesn't exist or failed to load, create new one
 			if (library == null)
 			{
 				library = new AnimationLibrary();
@@ -293,10 +300,14 @@ public partial class Enemy : CharacterBody3D
 			return;
 		}
 
+		// ✨ FIXED: Use HasAnimationLibrary check before getting
 		AnimationLibrary library = null;
 		try
 		{
-			library = _animPlayer.GetAnimationLibrary("EnemyAnims");
+			if (_animPlayer.HasAnimationLibrary("EnemyAnims"))
+			{
+				library = _animPlayer.GetAnimationLibrary("EnemyAnims");
+			}
 		}
 		catch
 		{

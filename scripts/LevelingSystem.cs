@@ -76,10 +76,7 @@ public partial class LevelingSystem : Node
 		// Calculate XP for next level (with soft cap after level 30)
 		CalculateXPForNextLevel();
 
-		GD.Print($"⭐ LEVEL UP! Now level {CurrentLevel}! Stat point available.");
-		GD.Print($"[LevelingSystem] LevelUp?.Invoke() called - Callback is {(LevelUp != null ? "CONNECTED ✅" : "NULL ❌")}");
 		LevelUp?.Invoke();  // ✨ Invoke Action instead of EmitSignal
-		GD.Print($"[LevelingSystem] LevelUp?.Invoke() completed");
 	}
 
 	/// <summary>
@@ -107,7 +104,6 @@ public partial class LevelingSystem : Node
 	{
 		if (AvailableStatPoints <= 0)
 		{
-			GD.PrintErr("❌ No stat points available!");
 			return;
 		}
 
@@ -132,7 +128,6 @@ public partial class LevelingSystem : Node
 				CritChancePoints++;
 				break;
 			default:
-				GD.PrintErr($"❌ Unknown stat: {statName}");
 				return;
 		}
 
@@ -140,7 +135,6 @@ public partial class LevelingSystem : Node
 		JustLeveledUp = false;  // User has spent the point, hide UI
 
 		int newValue = GetStatValue(statName);
-		GD.Print($"✨ +1 {statName}! New value: {newValue}");
 		StatAllocated?.Invoke(statName, newValue);  // ✨ Invoke Action instead of EmitSignal
 	}
 
@@ -245,7 +239,6 @@ public partial class LevelingSystem : Node
 		CritChancePoints = (int)(data.ContainsKey("crit_chance_points") ? data["crit_chance_points"] : 0);
 
 		CalculateXPForNextLevel();
-		GD.Print($"✅ Leveling data loaded! Level {CurrentLevel}");
 	}
 
 	/// <summary>
@@ -253,15 +246,6 @@ public partial class LevelingSystem : Node
 	/// </summary>
 	public void PrintStats()
 	{
-		GD.Print($"\n[LEVELING SYSTEM]");
-		GD.Print($"  Level: {CurrentLevel}");
-		GD.Print($"  XP: {CurrentXP:F0}/{XPRequiredForNextLevel:F0}");
-		GD.Print($"  Available Stat Points: {AvailableStatPoints}");
-		GD.Print($"  Health: +{HealthPoints * HEALTH_PER_POINT}");
-		GD.Print($"  Damage: +{DamagePoints * DAMAGE_PER_POINT}");
-		GD.Print($"  Attack Speed: -{DamagePoints * ATTACK_SPEED_PER_POINT * 100}%");
-		GD.Print($"  Stamina: +{StaminaPoints * STAMINA_PER_POINT}");
-		GD.Print($"  Dodge: +{DodgeChancePoints * DODGE_CHANCE_PER_POINT * 100}%");
-		GD.Print($"  Crit: +{CritChancePoints * CRIT_CHANCE_PER_POINT * 100}%\n");
+		// Stats printing removed
 	}
 }

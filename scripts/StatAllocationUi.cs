@@ -29,18 +29,14 @@ public partial class StatAllocationUI : CanvasLayer
 	public override void _Ready()
 	{
 		Layer = 100;  // Above everything else
-		GD.Print("[StatAllocationUI] _Ready() called");
 		// Initialization will be called via InitializeDirectly() from Player3D using CallDeferred
 	}
 
 	// ✨ NEW: Called via CallDeferred from Player3D
 	public void InitializeDirectly(LevelingSystem levelingSystem)
 	{
-		GD.Print($"[StatAllocationUI] InitializeDirectly() called!");
-		
 		if (levelingSystem == null)
 		{
-			GD.PrintErr("[StatAllocationUI] ERROR: LevelingSystem is null!");
 			return;
 		}
 
@@ -50,12 +46,9 @@ public partial class StatAllocationUI : CanvasLayer
 	// ✨ Original Initialize method
 	public void Initialize(LevelingSystem levelingSystem)
 	{
-		GD.Print($"[StatAllocationUI] Initialize() called with LevelingSystem");
-		
 		_levelSystem = levelingSystem;
 		if (_levelSystem == null)
 		{
-			GD.PrintErr("[StatAllocationUI] ERROR: LevelingSystem parameter is null!");
 			return;
 		}
 
@@ -63,9 +56,7 @@ public partial class StatAllocationUI : CanvasLayer
 		Visible = false;
 
 		// ✨ Connect to level up callback (C# Action)
-		GD.Print($"[StatAllocationUI] Connecting to LevelingSystem.LevelUp callback...");
 		_levelSystem.LevelUp += ShowLevelUpPanel;
-		GD.Print($"[StatAllocationUI] ✅ Connected! ShowLevelUpPanel will be called on level up");
 	}
 
 	private void CreateUI()
@@ -133,7 +124,6 @@ public partial class StatAllocationUI : CanvasLayer
 	{
 		// ✨ CHANGED: Just notify player, don't auto-show
 		// Player can open stats from bottom button
-		GD.Print($"[StatAllocationUI] 📊 Stat point available! Click Stats button to allocate.");
 	}
 
 	private void AllocateStatPoint(string statName, int index)
@@ -145,8 +135,6 @@ public partial class StatAllocationUI : CanvasLayer
 		// Hide panel
 		Visible = false;
 		// ✨ REMOVED: GetTree().Paused = false; - no longer pausing
-
-		GD.Print($"✅ Stat point allocated to {statName}");
 	}
 
 	// ✨ NEW: Public method to toggle the stats panel (called from SkillUIManager)
@@ -154,7 +142,6 @@ public partial class StatAllocationUI : CanvasLayer
 	{
 		if (_levelSystem == null) 
 		{
-			GD.PrintErr("[StatAllocationUI] Cannot open stats - LevelingSystem not ready!");
 			return;
 		}
 
@@ -162,14 +149,12 @@ public partial class StatAllocationUI : CanvasLayer
 		{
 			// Close panel
 			Visible = false;
-			GD.Print("[StatAllocationUI] Stats panel closed");
 		}
 		else
 		{
 			// Open panel
 			_levelLabel.Text = $"⭐ LEVEL {_levelSystem.CurrentLevel}!\nAvailable Points: {_levelSystem.AvailableStatPoints}";
 			Visible = true;
-			GD.Print("[StatAllocationUI] Stats panel opened");
 		}
 	}
 

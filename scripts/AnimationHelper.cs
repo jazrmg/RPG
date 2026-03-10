@@ -7,7 +7,6 @@ public static class AnimationHelper
 		PackedScene scene = GD.Load<PackedScene>(fbxPath);
 		if (scene == null)
 		{
-			GD.PrintErr($"Failed to load FBX: {fbxPath}");
 			return null;
 		}
 
@@ -15,7 +14,6 @@ public static class AnimationHelper
 		AnimationPlayer animPlayer = FindAnimationPlayer(instance);
 		if (animPlayer == null)
 		{
-			GD.PrintErr($"No AnimationPlayer found in {fbxPath}");
 			instance.QueueFree();
 			return null;
 		}
@@ -25,7 +23,6 @@ public static class AnimationHelper
 
 		if (anim == null)
 		{
-			GD.PrintErr($"No usable animation in {fbxPath}");
 			return null;
 		}
 

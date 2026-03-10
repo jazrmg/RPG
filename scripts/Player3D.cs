@@ -162,7 +162,6 @@ public partial class Player3D : CharacterBody3D
 		AddChild(statUI);  // ✨ FIXED: Add to Player3D instead of Root
 		// ✨ Use CallDeferred to initialize AFTER scene tree is ready
 		statUI.CallDeferred(nameof(StatAllocationUI.InitializeDirectly), LevelingSystem);
-		GD.Print("[Player3D] ✅ StatAllocationUI created and queued for initialization");
 
 		// ✨ Hide sword at start (not equipped yet)
 		if (_swordRoot != null)
@@ -1087,7 +1086,6 @@ public partial class Player3D : CharacterBody3D
 				{
 					int xpReward = 100;  // XP per enemy kill
 					LevelingSystem.AddXP(xpReward);
-					GD.Print($"💰 +{xpReward} XP! Enemy defeated!");
 				}
 			}
 		}
@@ -1205,8 +1203,6 @@ public partial class Player3D : CharacterBody3D
 	{
 		_playerHealth = MaxPlayerHealth;  // ✨ RESTORE HP
 		_stamina = MaxStamina;            // ✨ RESTORE STAMINA
-
-		GD.Print($"🎉 LEVELED UP! HP and Stamina restored to 100%");
 
 		if (_playerHealthBar != null) _playerHealthBar.Value = _playerHealth;
 		if (_staminaBar != null) _staminaBar.Value = _stamina;
