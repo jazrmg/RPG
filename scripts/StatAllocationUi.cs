@@ -10,7 +10,11 @@ public partial class StatAllocationUI : CanvasLayer
 	private LevelingSystem _levelSystem;
 	private PanelContainer _panel;
 	private Label _levelLabel;
-	private VBoxContainer _buttonContainer;
+	private HBoxContainer _buttonContainer;
+
+	// ✨ NEW: Key press tracking
+	private bool _lastZPressed = false;
+	private bool _lastXPressed = false;
 
 	private readonly string[] _statNames = { "Health", "Damage", "AttackSpeed", "Stamina", "Dodge", "Crit" };
 	private readonly Color[] _statColors = new Color[]
@@ -67,12 +71,12 @@ public partial class StatAllocationUI : CanvasLayer
 
 	private void CreateUI()
 	{
-		// ✨ Main panel (centered, semi-transparent)
+		// ✨ Main panel (bottom center, NOT centered)
 		_panel = new PanelContainer();
 		_panel.AnchorLeft = 0.25f;
-		_panel.AnchorTop = 0.25f;
+		_panel.AnchorTop = 0.75f;  // ✨ BOTTOM instead of center
 		_panel.AnchorRight = 0.75f;
-		_panel.AnchorBottom = 0.75f;
+		_panel.AnchorBottom = 0.95f;  // ✨ Near bottom
 		
 		var bgStyle = new StyleBoxFlat { BgColor = new Color(0.05f, 0.05f, 0.1f, 0.95f) };
 		bgStyle.SetBorderWidthAll(3);
@@ -81,36 +85,30 @@ public partial class StatAllocationUI : CanvasLayer
 
 		// ✨ Main container
 		var vbox = new VBoxContainer();
-		vbox.AddThemeConstantOverride("separation", 16);
+		vbox.AddThemeConstantOverride("separation", 12);
 		_panel.AddChild(vbox);
 
-		// ✨ Title
-		_levelLabel = new Label { Text = "⭐ LEVEL UP!" };
+		// ✨ Title with level and available points
+		_levelLabel = new Label { Text = "⭐ STATS" };
 		_levelLabel.AddThemeColorOverride("font_color", new Color(1, 1, 0, 1));
-		_levelLabel.AddThemeFontSizeOverride("font_size", 48);
+		_levelLabel.AddThemeFontSizeOverride("font_size", 32);
 		_levelLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		vbox.AddChild(_levelLabel);
 
-		// ✨ Subtitle
-		var subtitle = new Label { Text = "Choose a stat to improve" };
-		subtitle.AddThemeColorOverride("font_color", Colors.White);
-		subtitle.AddThemeFontSizeOverride("font_size", 24);
-		subtitle.HorizontalAlignment = HorizontalAlignment.Center;
-		vbox.AddChild(subtitle);
-
-		// ✨ Stat buttons
-		_buttonContainer = new VBoxContainer();
+		// ✨ Stat buttons (smaller, horizontal layout)
+		_buttonContainer = new HBoxContainer();  // ✨ CHANGED: HBox for horizontal layout
 		_buttonContainer.AddThemeConstantOverride("separation", 8);
+		_buttonContainer.Alignment = BoxContainer.AlignmentMode.Center;
 
 		for (int i = 0; i < _statNames.Length; i++)
 		{
 			string statName = _statNames[i];
 			Color color = _statColors[i];
-			int index = i;  // Capture for closure
+			int index = i;
 
-			var btn = new Button { Text = $"+1 {statName}" };
-			btn.CustomMinimumSize = new Vector2(300, 50);
-			btn.AddThemeFontSizeOverride("font_size", 20);
+			var btn = new Button { Text = $"+{statName[0]}" };  // ✨ Single letter for space
+			btn.CustomMinimumSize = new Vector2(60, 40);
+			btn.AddThemeFontSizeOverride("font_size", 16);
 			btn.AddThemeColorOverride("font_color", Colors.White);
 
 			var normalStyle = new StyleBoxFlat { BgColor = color };
@@ -134,49 +132,9 @@ public partial class StatAllocationUI : CanvasLayer
 
 	private void ShowLevelUpPanel()
 	{
-		try
-		{
-			GD.Print($"[StatAllocationUI] ShowLevelUpPanel() called!");
-			
-			if (_levelSystem == null) 
-			{
-				GD.PrintErr("[StatAllocationUI] ERROR: _levelSystem is NULL!");
-				return;
-			}
-
-			GD.Print($"[StatAllocationUI] Setting level label...");
-			if (_levelLabel == null)
-			{
-				GD.PrintErr("[StatAllocationUI] ERROR: _levelLabel is NULL!");
-				return;
-			}
-
-			_levelLabel.Text = $"⭐ LEVEL {_levelSystem.CurrentLevel}!";
-			GD.Print($"[StatAllocationUI] Level label set");
-			
-			GD.Print($"[StatAllocationUI] Setting Visible = true...");
-			Visible = true;
-			GD.Print($"[StatAllocationUI] Visible set to true");
-			
-			// ✨ FIXED: Check if GetTree() exists before pausing
-			GD.Print($"[StatAllocationUI] Pausing game...");
-			if (GetTree() != null)
-			{
-				GetTree().Paused = true;
-				GD.Print($"[StatAllocationUI] Game paused");
-			}
-			else
-			{
-				GD.PrintErr("[StatAllocationUI] WARNING: GetTree() is null, skipping pause");
-			}
-			
-			GD.Print($"✨ LEVEL UP UI SHOWN - Player can now spend stat point!");
-		}
-		catch (Exception ex)
-		{
-			GD.PrintErr($"[StatAllocationUI] ERROR in ShowLevelUpPanel: {ex.Message}");
-			GD.PrintErr($"[StatAllocationUI] Stack trace: {ex.StackTrace}");
-		}
+		// ✨ CHANGED: Just notify player, don't auto-show
+		// Player can open stats from bottom button
+		GD.Print($"[StatAllocationUI] 📊 Stat point available! Click Stats button to allocate.");
 	}
 
 	private void AllocateStatPoint(string statName, int index)
@@ -187,27 +145,71 @@ public partial class StatAllocationUI : CanvasLayer
 
 		// Hide panel
 		Visible = false;
-		
-		// ✨ FIXED: Check if GetTree() exists before unpausing
-		if (GetTree() != null)
-		{
-			GetTree().Paused = false;
-		}
+		// ✨ REMOVED: GetTree().Paused = false; - no longer pausing
 
 		GD.Print($"✅ Stat point allocated to {statName}");
 	}
 
+	// ✨ NEW: Public method to toggle the stats panel (called from SkillUIManager)
+	public void ToggleStatsPanel()
+	{
+		if (_levelSystem == null) 
+		{
+			GD.PrintErr("[StatAllocationUI] Cannot open stats - LevelingSystem not ready!");
+			return;
+		}
+
+		if (Visible)
+		{
+			// Close panel
+			Visible = false;
+			GD.Print("[StatAllocationUI] Stats panel closed");
+		}
+		else
+		{
+			// Open panel
+			_levelLabel.Text = $"⭐ LEVEL {_levelSystem.CurrentLevel}!\nAvailable Points: {_levelSystem.AvailableStatPoints}";
+			Visible = true;
+			GD.Print("[StatAllocationUI] Stats panel opened");
+		}
+	}
+
 	public override void _Process(double delta)
 	{
-		// Allow ESC to close (optional)
-		if (Visible && Input.IsActionJustPressed("ui_cancel"))
+		// ✨ NEW: Press Z or X to toggle stats panel
+		if (Input.IsActionJustPressed("ui_select"))  // ✨ Z key (or could use custom input)
 		{
-			Visible = false;
-			// ✨ FIXED: Check if GetTree() exists before unpausing
-			if (GetTree() != null)
+			ToggleStatsPanel();
+		}
+		
+		// Alternative: Use custom input map for X key
+		// You can add custom input in Project Settings > Input Map
+		// For now, we'll check for 'z' key directly
+		if (Input.IsKeyPressed(Key.Z))
+		{
+			if (!_lastZPressed)  // Only toggle once per press
 			{
-				GetTree().Paused = false;
+				ToggleStatsPanel();
+				_lastZPressed = true;
 			}
+		}
+		else
+		{
+			_lastZPressed = false;
+		}
+		
+		// Check for X key
+		if (Input.IsKeyPressed(Key.X))
+		{
+			if (!_lastXPressed)  // Only toggle once per press
+			{
+				ToggleStatsPanel();
+				_lastXPressed = true;
+			}
+		}
+		else
+		{
+			_lastXPressed = false;
 		}
 	}
 }

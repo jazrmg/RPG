@@ -15,6 +15,9 @@ public partial class SkillUIManager : Control
 	private ProgressBar _xpBar;
 	private Label _xpLabel;
 
+	// ✨ NEW: Stats UI reference
+	private StatAllocationUI _statsUI;
+
 	private readonly Color[] _skillColors = new[] {
 		new Color(0.1f, 0.9f, 0.1f),      // Green
 		new Color(0.95f, 0.75f, 0.0f),    // Yellow
@@ -25,6 +28,10 @@ public partial class SkillUIManager : Control
 	{
 		_player = GetTree().Root.GetChild(0).FindChild("Player3D", true, false) as Player3D;
 		if (_player == null) { GD.PrintErr("[SkillUI] Player3D not found!"); return; }
+
+		// ✨ NEW: Find StatAllocationUI
+		_statsUI = GetTree().Root.FindChild("StatAllocationUI", true, false) as StatAllocationUI;
+		if (_statsUI == null) { GD.PrintErr("[SkillUI] StatAllocationUI not found!"); }
 
 		AnchorLeft = AnchorTop = 0.0f;
 		AnchorRight = AnchorBottom = 1.0f;
@@ -287,6 +294,29 @@ public partial class SkillUIManager : Control
 		_lightCooldown = cooldownLabels[0];
 		_heavyCooldown = cooldownLabels[1];
 		_specialCooldown = cooldownLabels[2];
+
+		// ✨ NEW: STATS BUTTON
+		var statsBtn = new Button { Text = "📊 STATS" };
+		statsBtn.CustomMinimumSize = new Vector2(70, 40);
+		statsBtn.AddThemeFontSizeOverride("font_size", 14);
+		statsBtn.AddThemeColorOverride("font_color", Colors.White);
+		var statsStyle = new StyleBoxFlat { BgColor = new Color(0.2f, 0.6f, 0.8f, 1) };  // Cyan
+		statsBtn.AddThemeStyleboxOverride("normal", statsStyle);
+		
+		var statsHoverStyle = new StyleBoxFlat { BgColor = new Color(0.3f, 0.8f, 1.0f, 1) };
+		statsBtn.AddThemeStyleboxOverride("hover", statsHoverStyle);
+		
+		var statsPressStyle = new StyleBoxFlat { BgColor = new Color(0.4f, 0.9f, 1.0f, 1) };
+		statsBtn.AddThemeStyleboxOverride("focus", statsPressStyle);
+		statsBtn.AddThemeStyleboxOverride("pressed", statsPressStyle);
+		
+		statsBtn.Pressed += () => {
+			if (_statsUI != null)
+			{
+				_statsUI.ToggleStatsPanel();
+			}
+		};
+		vbox.AddChild(statsBtn);
 
 		AddChild(vbox);
 	}
