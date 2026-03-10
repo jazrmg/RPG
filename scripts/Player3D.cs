@@ -73,6 +73,9 @@ public partial class Player3D : CharacterBody3D
 	private AnimationPlayer _animPlayer;
 	private Node3D _swordRoot;
 
+	// ✨ LEVELING SYSTEM
+	public LevelingSystem LevelingSystem { get; private set; }
+
 	private Dictionary<string, string> _animationCache = new Dictionary<string, string>();
 	private string _dodgeSlideAnim = "";  // ✨ NEW: Store dodge animation name
 	private bool _isSwordEquipped = false;  // ✨ SWORD NOT EQUIPPED AT START - REQUIRE MANUAL EQUIP!
@@ -144,6 +147,17 @@ public partial class Player3D : CharacterBody3D
 		_cameraYaw = Rotation.Y;
 		_cameraPitch = _springArm.Rotation.X;
 		_springArm.TopLevel = true;
+
+		// ✨ NEW: Initialize leveling system
+		LevelingSystem = new LevelingSystem();
+		AddChild(LevelingSystem);
+		LevelingSystem.LevelUp += OnPlayerLevelUp;  // Connect level-up callback
+
+		// ✨ NEW: Create and add StatAllocationUI (level-up popup)
+		var statUI = new StatAllocationUI();
+		GetTree().Root.AddChild(statUI);
+		statUI.Initialize(LevelingSystem);  // ✨ Pass LevelingSystem reference directly!
+		GD.Print("[Player3D] ✅ StatAllocationUI initialized with LevelingSystem");
 
 		// ✨ Hide sword at start (not equipped yet)
 		if (_swordRoot != null)
@@ -1055,7 +1069,16 @@ public partial class Player3D : CharacterBody3D
 				// ✨ Enemy flash effect
 				enemy.FlashHit();
 				
+				float enemyHealthBeforeDamage = enemy.CurrentHealth;
 				enemy.TakeDamage(damage, knockbackDir, knockback, isCritical);
+				
+				// ✨ NEW: Check if enemy died and reward XP
+				if (enemyHealthBeforeDamage > 0 && enemy.CurrentHealth <= 0)
+				{
+					int xpReward = 100;  // XP per enemy kill
+					LevelingSystem.AddXP(xpReward);
+					GD.Print($"💰 +{xpReward} XP! Enemy defeated!");
+				}
 			}
 		}
 	}
@@ -1152,6 +1175,22 @@ public partial class Player3D : CharacterBody3D
 
 		if (_playerHealth <= 0.0f)
 			GameOver();
+	}
+
+	/// <summary>
+	/// ✨ Called when player levels up - restore HP/Stamina to 100%
+	/// </summary>
+	private void OnPlayerLevelUp()
+	{
+		_playerHealth = MaxPlayerHealth;  // ✨ RESTORE HP
+		_stamina = MaxStamina;            // ✨ RESTORE STAMINA
+
+		GD.Print($"🎉 LEVELED UP! HP and Stamina restored to 100%");
+
+		if (_playerHealthBar != null) _playerHealthBar.Value = _playerHealth;
+		if (_staminaBar != null) _staminaBar.Value = _stamina;
+		if (_playerHealthLabel != null) _playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {MaxPlayerHealth:F0}";
+		if (_staminaLabel != null) _staminaLabel.Text = $"Stamina: {_stamina:F0} / {MaxStamina:F0}";
 	}
 
 	private void ShowDamageNumber(float damage, bool isCritical = false)

@@ -10,6 +10,11 @@ public partial class SkillUIManager : Control
 	private Label _lightCooldown, _heavyCooldown, _specialCooldown;
 	private Player3D _player;
 
+	// ✨ NEW: Level display
+	private Label _levelLabel;
+	private ProgressBar _xpBar;
+	private Label _xpLabel;
+
 	private readonly Color[] _skillColors = new[] {
 		new Color(0.1f, 0.9f, 0.1f),      // Green
 		new Color(0.95f, 0.75f, 0.0f),    // Yellow
@@ -34,6 +39,9 @@ public partial class SkillUIManager : Control
 		
 		// Stamina Bar - Top Right
 		CreateStaminaBar();
+
+		// ✨ NEW: Level Display - Top Center
+		CreateLevelDisplay();
 		
 		// Skill Buttons - Right Side
 		CreateSkillButtons();
@@ -126,6 +134,54 @@ public partial class SkillUIManager : Control
 		_staminaBar.AddThemeStyleboxOverride("fill", barFill);
 
 		vbox.AddChild(_staminaBar);
+		AddChild(container);
+	}
+
+	private void CreateLevelDisplay()
+	{
+		// ✨ Level panel - Top center
+		var container = new PanelContainer();
+		container.AnchorLeft = 0.35f;
+		container.AnchorTop = 0.0f;
+		container.AnchorRight = 0.65f;
+		container.AnchorBottom = 0.15f;
+		container.OffsetLeft = 10;
+		container.OffsetTop = 10;
+		container.OffsetRight = -10;
+		container.OffsetBottom = -10;
+
+		var bgStyle = new StyleBoxFlat { BgColor = new Color(0.02f, 0.02f, 0.02f, 0.9f) };
+		container.AddThemeStyleboxOverride("panel", bgStyle);
+
+		var vbox = new VBoxContainer();
+		vbox.AddThemeConstantOverride("separation", 4);
+		container.AddChild(vbox);
+
+		_levelLabel = new Label { Text = "⭐ LEVEL 1" };
+		_levelLabel.AddThemeColorOverride("font_color", new Color(1, 1, 0, 1));
+		_levelLabel.AddThemeFontSizeOverride("font_size", 20);
+		_levelLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		vbox.AddChild(_levelLabel);
+
+		_xpLabel = new Label { Text = "XP: 0 / 100" };
+		_xpLabel.AddThemeColorOverride("font_color", Colors.White);
+		_xpLabel.AddThemeFontSizeOverride("font_size", 12);
+		_xpLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		vbox.AddChild(_xpLabel);
+
+		_xpBar = new ProgressBar();
+		_xpBar.MinValue = 0;
+		_xpBar.MaxValue = 100;
+		_xpBar.Value = 0;
+		_xpBar.CustomMinimumSize = new Vector2(200, 16);
+
+		var barBg = new StyleBoxFlat { BgColor = new Color(0.1f, 0.1f, 0.1f, 0.9f) };
+		_xpBar.AddThemeStyleboxOverride("background", barBg);
+
+		var barFill = new StyleBoxFlat { BgColor = new Color(0.3f, 0.8f, 1f, 1) };
+		_xpBar.AddThemeStyleboxOverride("fill", barFill);
+
+		vbox.AddChild(_xpBar);
 		AddChild(container);
 	}
 
@@ -242,6 +298,7 @@ public partial class SkillUIManager : Control
 		UpdateBars();
 		UpdateCooldowns();
 		UpdateSelection();
+		UpdateLevelDisplay();  // ✨ NEW: Update level/XP
 		HandleInput();
 	}
 
@@ -251,6 +308,18 @@ public partial class SkillUIManager : Control
 		_healthBar.Value = _player._playerHealth;
 		_staminaLabel.Text = $"{_player._stamina:F0} / {_player.MaxStamina:F0}";
 		_staminaBar.Value = _player._stamina;
+	}
+
+	private void UpdateLevelDisplay()
+	{
+		// ✨ NEW: Update level and XP bar
+		if (_player?.LevelingSystem == null) return;
+
+		_levelLabel.Text = $"⭐ LEVEL {_player.LevelingSystem.CurrentLevel}";
+		_xpLabel.Text = $"XP: {_player.LevelingSystem.CurrentXP:F0} / {_player.LevelingSystem.XPRequiredForNextLevel:F0}";
+		
+		float xpPercent = _player.LevelingSystem.CurrentXP / _player.LevelingSystem.XPRequiredForNextLevel;
+		_xpBar.Value = Mathf.Clamp(xpPercent * 100, 0, 100);
 	}
 
 	private void UpdateCooldowns()

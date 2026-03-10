@@ -253,6 +253,7 @@ public partial class Enemy : CharacterBody3D
 			}
 			catch
 			{
+				// Animation library access failed - create new one (non-critical)
 				library = null;
 			}
 
