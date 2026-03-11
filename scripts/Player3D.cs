@@ -349,11 +349,7 @@ public partial class Player3D : CharacterBody3D
 			RotateTowardDirection(dirToEnemyNorm, delta * 1.2f);  // Slightly faster turning for better responsiveness
 		}
 
-		// ✨ DODGING: Always try to dodge when enemy is close (not just when not attacking)
-		if (enemyClosing && IsOnFloor())
-		{
-			PredictiveDodging(distanceToEnemy, healthPercent, braveryLevel, delta);
-		}
+		// ✨ REMOVED: No jumping from auto battle anymore!
 
 		// ✨ AUTO ATTACK LOGIC - Aggressive when in range!
 		if (distanceToEnemy <= 3.5f)  // ✨ IMPROVED: More responsive range (was 3.8, now 3.5)
@@ -508,11 +504,11 @@ public partial class Player3D : CharacterBody3D
 		{
 			moveDirection = moveDirection.Normalized();
 			Vector3 horizontalVelocity = new Vector3(_velocity.X, 0, _velocity.Z);
-			float targetSpeed = (braveryLevel > 0.7f) ? MaxRunSpeed * 1.1f : MaxRunSpeed;  // Faster when brave!
+			float targetSpeed = (braveryLevel > 0.7f) ? MaxRunSpeed * 1.1f : MaxRunSpeed;
 			Vector3 desiredVelocity = moveDirection * targetSpeed;
 			
-			// Smoother acceleration
-			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, RunAcceleration * delta * 1.2f);
+			// ✨ ULTRA SMOOTH: Smoother acceleration for auto battle (1.2 → 1.0)
+			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, RunAcceleration * delta * 1.0f);
 
 			_velocity.X = horizontalVelocity.X;
 			_velocity.Z = horizontalVelocity.Z;
@@ -521,7 +517,8 @@ public partial class Player3D : CharacterBody3D
 		{
 			// Smooth deceleration when stopping
 			Vector3 horizontalVelocity = new Vector3(_velocity.X, 0, _velocity.Z);
-			horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, RunAcceleration * 2.0f * delta);  // 2x faster decel for snappier combat
+			// ✨ ULTRA SMOOTH: Smoother deceleration for less jerky stops
+			horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, RunAcceleration * 1.8f * delta);
 			_velocity.X = horizontalVelocity.X;
 			_velocity.Z = horizontalVelocity.Z;
 		}
@@ -693,7 +690,8 @@ public partial class Player3D : CharacterBody3D
 	{
 		if (!IsOnFloor())
 		{
-			float multiplier = velocity.Y > 0 ? 0.5f : 1.2f;
+			// ✨ ULTRA SMOOTH: Better gravity feel (0.5 ascent, 1.1 descent for floatier feel)
+			float multiplier = velocity.Y > 0 ? 0.45f : 1.1f;  // ✨ Even smoother gravity curve
 			velocity.Y -= _gravity * multiplier * delta;
 		}
 	}
@@ -707,7 +705,7 @@ public partial class Player3D : CharacterBody3D
 		if (_isDodgeRolling)
 		{
 			maxSpeed = DodgeRollSpeed;
-			acceleration = DodgeRollSpeed * 2;  // Faster acceleration for dodge
+			acceleration = DodgeRollSpeed * 2;
 		}
 
 		if (desiredDirection != Vector3.Zero && !_isDodgeRolling)
@@ -732,18 +730,18 @@ public partial class Player3D : CharacterBody3D
 		}
 		else if (desiredDirection != Vector3.Zero)
 		{
-			// ✨ SMOOTHED: Better input direction lerping (0.1 -> 0.08 for smoother feel)
-			_lastInputDirection = _lastInputDirection.Lerp(desiredDirection, 0.08f);
+			// ✨ ULTRA SMOOTH: Improved input direction lerping for buttery feel
+			_lastInputDirection = _lastInputDirection.Lerp(desiredDirection, 0.12f);  // ✨ Even smoother input response
 			Vector3 desiredVelocity = _lastInputDirection * maxSpeed;
 			float speed = horizontalVelocity.Length();
 			float desiredSpeed = desiredVelocity.Length();
 
 			if (speed < desiredSpeed)
-				// ✨ SMOOTHED: Improved acceleration lerp for smoother speedup
-				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, acceleration * 0.9f * delta);
+				// ✨ ULTRA SMOOTH: Better acceleration curve (0.9 → 0.85 for smoother feel)
+				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, acceleration * 0.85f * delta);
 			else
-				// ✨ SMOOTHED: Better deceleration curve
-				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, (acceleration * 0.4f) * delta);
+				// ✨ ULTRA SMOOTH: Better deceleration (0.4 → 0.35 for smoother)
+				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, (acceleration * 0.35f) * delta);
 
 			if (!_isDodgeRolling)
 				RotateTowardDirection(desiredDirection, delta);
@@ -751,8 +749,8 @@ public partial class Player3D : CharacterBody3D
 		else
 		{
 			_lastInputDirection = Vector3.Zero;
-			// ✨ SMOOTHED: Better friction application (0.92 -> 0.94 for smoother stops)
-			horizontalVelocity *= isGrounded ? 0.94f : 0.88f;
+			// ✨ ULTRA SMOOTH: Better friction with smoother transitions
+			horizontalVelocity *= isGrounded ? 0.93f : 0.88f;  // ✨ 0.94 → 0.93 for smoother
 		}
 
 		_velocity.X = horizontalVelocity.X;
@@ -827,8 +825,8 @@ public partial class Player3D : CharacterBody3D
 			if (_animationCache.TryGetValue("DodgeSlide", out string dodgeAnimPath))
 			{
 				PlayAnimation("DodgeSlide");
-				// ✨ SMOOTHED: Faster dodge animation
-				_animPlayer.SpeedScale = 1.2f;
+				// ✨ ULTRA SMOOTH: Fast dodge animation with smooth recovery
+				_animPlayer.SpeedScale = 1.15f;
 				
 				// Get animation duration for more realistic timing
 				Animation dodgeAnim = _animPlayer.GetAnimation(dodgeAnimPath);
@@ -842,10 +840,10 @@ public partial class Player3D : CharacterBody3D
 						_isDodgeRolling = false;
 						_dodgeRollCooldownTimer = DodgeRollCooldown;
 						
-						// ✨ SMOOTHED: Better momentum preservation (0.7 -> 0.75 for less loss)
-						_velocity.X *= 0.75f;
-						_velocity.Z *= 0.75f;
-						// ✨ SMOOTHED: Reset animation speed
+						// ✨ ULTRA SMOOTH: Better momentum preservation with smoother transitions
+						_velocity.X *= 0.80f;  // ✨ 0.75 → 0.80 for smoother recovery
+						_velocity.Z *= 0.80f;
+						// ✨ Smooth speed transition back to normal
 						_animPlayer.SpeedScale = 1.0f;
 					}
 				};
@@ -876,15 +874,15 @@ public partial class Player3D : CharacterBody3D
 	{
 		if (direction == Vector3.Zero) return;
 		float targetYaw = Mathf.Atan2(direction.X, direction.Z);
-		float newYaw = Mathf.LerpAngle(Rotation.Y, targetYaw, RotationSpeed * delta);
+		float newYaw = Mathf.LerpAngle(Rotation.Y, targetYaw, RotationSpeed * 1.1f * delta);  // ✨ Slightly faster for snappier feel
 		Rotation = new Vector3(Rotation.X, newYaw, Rotation.Z);
 	}
 
 	private void UpdateCameraRig()
 	{
-		// ✨ SMOOTHED: Camera follows smoothly instead of snapping
+		// ✨ SMOOTHED: Camera follows ultra-smoothly (0.12 → 0.15 for even better feel)
 		Vector3 targetCamPos = GlobalPosition + Vector3.Up * _cameraHeightOffset;
-		_smoothCameraPos = _smoothCameraPos.Lerp(targetCamPos, 0.12f);  // ✨ Smooth follow
+		_smoothCameraPos = _smoothCameraPos.Lerp(targetCamPos, 0.15f);  // ✨ Smoother follow
 		_springArm.GlobalPosition = _smoothCameraPos;
 		
 		_springArm.GlobalRotation = new Vector3(_cameraPitch, _cameraYaw, 0.0f);
@@ -935,7 +933,7 @@ public partial class Player3D : CharacterBody3D
 		_isSitting = !_isSitting;
 	}
 
-	// ✨ UPDATED: Attack system with attack mode
+	// ✨ UPDATED: Attack system with attack mode and ATTACK SPEED MULTIPLIER
 	private void HandleAttack()
 	{
 		if (_isAttacking || _isDodgeRolling)
@@ -1015,11 +1013,20 @@ public partial class Player3D : CharacterBody3D
 	private bool CanHeavyAttack() => !_isSitting && _heavyAttackCooldownTimer <= 0 && HasStaminaForAction(HeavyStaminaCost) && IsOnFloor() && _isSwordEquipped;  // ✨ SEPARATE
 	private bool CanSpecialAttack() => !_isSitting && _specialAttackCooldownTimer <= 0 && HasStaminaForAction(SpecialStaminaCost) && IsOnFloor() && _isSwordEquipped;
 
+	// ✨ FIX: Get attack speed multiplier from leveling system
+	private float GetAttackSpeedMultiplier()
+	{
+		if (LevelingSystem == null) return 1.0f;
+		return LevelingSystem.GetAttackSpeedMultiplier();
+	}
+
 	private void PerformLightAttack()
 	{
 		_isAttacking = true;
 		_hitEnemiesThisAttack.Clear();
-		_lightAttackCooldownTimer = LightAttackCooldown;  // ✨ SEPARATE: Light cooldown only
+		// ✨ FIXED: Apply attack speed multiplier from leveling system
+		float speedMult = GetAttackSpeedMultiplier();
+		_lightAttackCooldownTimer = LightAttackCooldown * speedMult;
 		_currentAttackMode = AttackMode.None;
 
 		if (_comboTimer > 0)
@@ -1033,33 +1040,43 @@ public partial class Player3D : CharacterBody3D
 		_comboTimer = 0.5f;
 
 		PlayAnimation("SwordSlash");
-		CreateSlashEffect();  // ✨ Slash visual!
+		// ✨ ULTRA SMOOTH: Slightly faster attacks for snappier feel
+		_animPlayer.SpeedScale = 1.10f;  // ✨ 1.15 → 1.10 for less jittery
+		CreateSlashEffect();
 	}
 
 	private void PerformHeavyAttack()
 	{
 		_isAttacking = true;
 		_hitEnemiesThisAttack.Clear();
-		_heavyAttackCooldownTimer = HeavyAttackCooldown;  // ✨ SEPARATE: Heavy cooldown only
+		// ✨ FIXED: Apply attack speed multiplier from leveling system
+		float speedMult = GetAttackSpeedMultiplier();
+		_heavyAttackCooldownTimer = HeavyAttackCooldown * speedMult;
 		_stamina -= HeavyStaminaCost;
 		_staminaEmptyTimer = StaminaRegenDelay;
 		_currentAttackMode = AttackMode.None;
 
 		PlayAnimation("SwordSlash");
-		CreateSlashEffect();  // ✨ Slash visual!
+		// ✨ ULTRA SMOOTH: Adjusted animation speed for heavy attacks
+		_animPlayer.SpeedScale = 1.08f;  // ✨ Heavy attacks slightly faster
+		CreateSlashEffect();
 	}
 
 	private void PerformSpecialAttack()
 	{
 		_isAttacking = true;
 		_hitEnemiesThisAttack.Clear();
-		_specialAttackCooldownTimer = SpecialCooldown;
+		// ✨ FIXED: Apply attack speed multiplier from leveling system
+		float speedMult = GetAttackSpeedMultiplier();
+		_specialAttackCooldownTimer = SpecialCooldown * speedMult;
 		_stamina -= SpecialStaminaCost;
 		_staminaEmptyTimer = StaminaRegenDelay;
 		_currentAttackMode = AttackMode.None;
 
 		PlayAnimation("SwordSlash");
-		CreateSlashEffect();  // ✨ Slash visual!
+		// ✨ ULTRA SMOOTH: Fastest animation for special attacks
+		_animPlayer.SpeedScale = 1.12f;  // ✨ Special attacks are snappy
+		CreateSlashEffect();
 	}
 
 	private void CheckAttackHits()
@@ -1158,10 +1175,14 @@ public partial class Player3D : CharacterBody3D
 		if (_animPlayer.CurrentAnimation != path)
 		{
 			_animPlayer.Play(path);
-			// ✨ IMPROVED: Speed up attack animations slightly for snappier feel
+			// ✨ ULTRA SMOOTH: Better animation speed blending
 			if (name.Contains("Attack") || name.Contains("Slash"))
 			{
-				_animPlayer.SpeedScale = 1.15f;  // ✨ 15% faster attacks
+				_animPlayer.SpeedScale = 1.12f;  // ✨ Slightly faster for snappier feel (was 1.15)
+			}
+			else if (name.Contains("Dodge"))
+			{
+				_animPlayer.SpeedScale = 1.15f;  // ✨ Fast dodge animation
 			}
 			else
 			{

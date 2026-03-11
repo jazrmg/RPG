@@ -18,7 +18,7 @@ public partial class LevelingSystem : Node
 	// ✨ STAT POINT VALUES (per point spent)
 	private const float HEALTH_PER_POINT = 5f;
 	private const float DAMAGE_PER_POINT = 2f;
-	private const float ATTACK_SPEED_PER_POINT = 0.05f;  // 5% faster
+	private const float ATTACK_SPEED_PER_POINT = 0.60f;  // ✨ EXTREME: 60% per point (INSANELY FAST - 5x stronger than before!)
 	private const float STAMINA_PER_POINT = 5f;
 	private const float DODGE_CHANCE_PER_POINT = 0.02f;  // 2%
 	private const float CRIT_CHANCE_PER_POINT = 0.01f;   // 1%
@@ -182,10 +182,13 @@ public partial class LevelingSystem : Node
 
 	/// <summary>
 	/// Get attack speed multiplier (cooldown reduction)
+	/// ✨ EXTREME: Each point reduces cooldown by 60% - capped at 0.05 multiplier (20x faster!)
 	/// </summary>
 	public float GetAttackSpeedMultiplier()
 	{
-		return 1.0f - (AttackSpeedPoints * ATTACK_SPEED_PER_POINT);  // Lower = faster
+		// ✨ EXTREME: Calculate with massive multiplier, but cap at 0.05 minimum (20x faster at max!)
+		float multiplier = 1.0f - (AttackSpeedPoints * ATTACK_SPEED_PER_POINT);
+		return Mathf.Max(multiplier, 0.05f);  // ✨ Never go below 0.05 (20x faster attacks!)
 	}
 
 	/// <summary>

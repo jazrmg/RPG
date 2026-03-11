@@ -552,13 +552,7 @@ public partial class Enemy : CharacterBody3D
 			Node spawnedNode1 = enemyScene.Instantiate();
 			parent.AddChild(spawnedNode1);
 			spawnedNode1.Set("global_position", spawnOffset1);
-
-			ProgressBar healthBar = GetNodeOrNull<ProgressBar>($"{spawnedNode1.Name}/HealthBarCanvas/HealthBarContainer/HealthBar");
-			if (healthBar == null)
-			{
-				spawnedNode1.CallDeferred("SetupEnemy");
-			}
-
+			// ✨ FIXED: _Ready() automatically calls SetupEnemy(), so don't call it again
 			spawnedNode1.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
 		}
 		catch
@@ -570,13 +564,7 @@ public partial class Enemy : CharacterBody3D
 			Node spawnedNode2 = enemyScene.Instantiate();
 			parent.AddChild(spawnedNode2);
 			spawnedNode2.Set("global_position", spawnOffset2);
-
-			ProgressBar healthBar2 = GetNodeOrNull<ProgressBar>($"{spawnedNode2.Name}/HealthBarCanvas/HealthBarContainer/HealthBar");
-			if (healthBar2 == null)
-			{
-				spawnedNode2.CallDeferred("SetupEnemy");
-			}
-
+			// ✨ FIXED: Same here - _Ready() handles initialization
 			spawnedNode2.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
 		}
 		catch
