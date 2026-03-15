@@ -15,13 +15,13 @@ public partial class LevelingSystem : Node
 	private const float SOFT_CAP_REDUCTION = 0.90f;  // 10% reduction per level after 30
 	private const int MAX_LEVEL = 100;
 
-	// ✨ STAT POINT VALUES (per point spent)
-	private const float HEALTH_PER_POINT = 5f;
-	private const float DAMAGE_PER_POINT = 2f;
-	private const float ATTACK_SPEED_PER_POINT = 0.60f;  // ✨ EXTREME: 60% per point (INSANELY FAST - 5x stronger than before!)
-	private const float STAMINA_PER_POINT = 5f;
-	private const float DODGE_CHANCE_PER_POINT = 0.02f;  // 2%
-	private const float CRIT_CHANCE_PER_POINT = 0.01f;   // 1%
+	// ✨ STAT POINT VALUES - ABSOLUTELY EPIC FOR INSANE PROGRESSION!
+	private const float HEALTH_PER_POINT = 200f;        // ✨ 150 → 200 (even more!)
+	private const float DAMAGE_PER_POINT = 100f;        // ✨ Not used with exponential
+	private const float ATTACK_SPEED_PER_POINT = 0.50f; // ✨ Not used with exponential
+	private const float STAMINA_PER_POINT = 200f;       // ✨ 150 → 200 (even more!)
+	private const float DODGE_CHANCE_PER_POINT = 0.20f; // ✨ 15% → 20% per point!
+	private const float CRIT_CHANCE_PER_POINT = 0.15f;  // ✨ 12% → 15% per point!
 
 	// ✨ PLAYER PROGRESSION STATE
 	public int CurrentLevel { get; private set; } = 1;
@@ -33,7 +33,7 @@ public partial class LevelingSystem : Node
 	// ✨ STAT ALLOCATIONS (how many points spent on each stat)
 	public int HealthPoints { get; private set; } = 0;
 	public int DamagePoints { get; private set; } = 0;
-	public int AttackSpeedPoints { get; private set; } = 0;
+	public int AttackSpeedPoints { get; private set; } = 0;  // ✨ Back to 0 (was 100 for testing)
 	public int StaminaPoints { get; private set; } = 0;
 	public int DodgeChancePoints { get; private set; } = 0;
 	public int CritChancePoints { get; private set; } = 0;
@@ -181,14 +181,24 @@ public partial class LevelingSystem : Node
 	}
 
 	/// <summary>
-	/// Get attack speed multiplier (cooldown reduction)
-	/// ✨ EXTREME: Each point reduces cooldown by 60% - capped at 0.05 multiplier (20x faster!)
+	/// Get attack speed multiplier (cooldown reduction) - ULTRA AGGRESSIVE!
 	/// </summary>
 	public float GetAttackSpeedMultiplier()
 	{
-		// ✨ EXTREME: Calculate with massive multiplier, but cap at 0.05 minimum (20x faster at max!)
-		float multiplier = 1.0f - (AttackSpeedPoints * ATTACK_SPEED_PER_POINT);
-		return Mathf.Max(multiplier, 0.05f);  // ✨ Never go below 0.05 (20x faster attacks!)
+		if (AttackSpeedPoints <= 0)
+			return 1.0f;
+		
+		// ✨ ULTRA FAST: 0.90^points (even more aggressive!)
+		// 1 point = ×0.90 (10% faster)
+		// 5 points = ×0.59 (41% faster)
+		// 10 points = ×0.35 (65% faster)
+		// 15 points = ×0.21 (79% faster)
+		// 20 points = ×0.12 (88% faster)
+		// 27 points = ×0.05 (95% FASTER!!!)
+		float multiplier = Mathf.Pow(0.90f, AttackSpeedPoints);
+		
+		// Never go below 0.01 (near-instant attacks)
+		return Mathf.Max(multiplier, 0.01f);
 	}
 
 	/// <summary>

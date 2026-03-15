@@ -8,64 +8,47 @@ public partial class Player3D : CharacterBody3D
 	[Export] public float MaxRunSpeed = 8.5f;
 	[Export] public float GroundAcceleration = 20.0f;
 	[Export] public float RunAcceleration = 30.0f;
-	[Export] public float JumpForce = 4.5f;
+	[Export] public float JumpForce = 4.3f;
 	[Export] public float MouseSensitivity = 0.3f;
-	[Export] public float RotationSpeed = 10.0f;
-	[Export] public float CoyoteTime = 0.18f;
-	[Export] public float JumpBufferTime = 0.18f;
+	[Export] public float RotationSpeed = 15.0f;
+	[Export] public float CoyoteTime = 0.16f;
+	[Export] public float JumpBufferTime = 0.16f;
 
-	// COMBAT - LIGHT ATTACK (base values before stat bonuses)
-	[Export] public float LightSlashDamage = 15.0f;
+	// COMBAT - LIGHT ATTACK
+	[Export] public float LightSlashDamage = 25.0f;      // ✨ 15 → 25
 	[Export] public float LightSlashKnockback = 5.0f;
-	[Export] public float LightAttackCooldown = 0.5f;
+	[Export] public float LightAttackCooldown = 0.15f;    // ✨ 0.4 → 0.15 (even faster base!)
 
 	// COMBAT - HEAVY ATTACK
-	[Export] public float HeavySlashDamage = 35.0f;
+	[Export] public float HeavySlashDamage = 60.0f;      // ✨ 35 → 60
 	[Export] public float HeavySlashKnockback = 15.0f;
-	[Export] public float HeavyAttackCooldown = 1.2f;
+	[Export] public float HeavyAttackCooldown = 0.6f;    // ✨ 1.0 → 0.6 (faster!)
 	[Export] public float HeavyStaminaCost = 30.0f;
 
 	// COMBAT - SPECIAL ATTACK
-	[Export] public float SpecialDamage = 50.0f;
+	[Export] public float SpecialDamage = 85.0f;         // ✨ 50 → 85
 	[Export] public float SpecialKnockback = 20.0f;
 	[Export] public float SpecialStaminaCost = 60.0f;
-	[Export] public float SpecialCooldown = 2.0f;
+	[Export] public float SpecialCooldown = 1.2f;        // ✨ 1.8 → 1.2 (faster!)
 
-	// COMBAT - GENERAL (base values before stat bonuses)
+	// COMBAT - GENERAL
 	[Export] public float CriticalChance = 0.25f;
 	[Export] public float CriticalMultiplier = 1.5f;
 	[Export] public float InvincibilityDuration = 0.3f;
 	[Export] public float AttackModeWindowTime = 3.0f;
 
 	// DODGE ROLL
-	[Export] public float DodgeRollSpeed = 4.5f;
+	[Export] public float DodgeRollSpeed = 4.2f;
 	[Export] public float DodgeRollDuration = 0.48f;
-	[Export] public float DodgeRollCooldown = 0.70f;
+	[Export] public float DodgeRollCooldown = 0.75f;
 	[Export] public float DodgeRollStaminaCost = 20.0f;
 
-	// HEALTH & STAMINA (base values before stat bonuses)
-	[Export] public float MaxPlayerHealth = 100.0f;
-	[Export] public float MaxStamina = 100.0f;
+	// HEALTH & STAMINA
+	[Export] public float MaxPlayerHealth = 150.0f;      // ✨ 100 → 150 (baseline)
+	[Export] public float MaxStamina = 150.0f;           // ✨ 100 → 150 (baseline)
 	[Export] public float StaminaDrainRateRun = 30.0f;
 	[Export] public float StaminaRegenRate = 15.0f;
 	[Export] public float StaminaRegenDelay = 0.5f;
-
-	// SMOOTHING TUNING
-	[Export] public float CameraFollowSpeed = 12.0f;
-	[Export] public float InputSmoothSpeed = 16.0f;
-	[Export] public float FrictionSpeed = 10.0f;
-	[Export] public float AnimBlendTime = 0.15f;
-	[Export] public float KnockbackDecaySpeed = 8.0f;
-
-	// ─── EFFECTIVE STATS (base + leveling bonuses) ───────────────
-	// These are what the game actually uses for all calculations.
-	// They read from LevelingSystem every time they're accessed.
-	public float EffectiveMaxHealth => MaxPlayerHealth + (LevelingSystem?.GetHealthBonus() ?? 0f);
-	public float EffectiveMaxStamina => MaxStamina + (LevelingSystem?.GetStaminaBonus() ?? 0f);
-	public float EffectiveCritChance => CriticalChance + (LevelingSystem?.GetCritChanceBonus() ?? 0f);
-	public float EffectiveDodgeChance => LevelingSystem?.GetDodgeChanceBonus() ?? 0f;
-	public float EffectiveDamageMultiplier => LevelingSystem?.GetDamageMultiplier() ?? 1f;
-	public float EffectiveAttackSpeedMult => LevelingSystem?.GetAttackSpeedMultiplier() ?? 1f;
 
 	// PLAYER STATE
 	public float _playerHealth = 100.0f;
@@ -90,17 +73,17 @@ public partial class Player3D : CharacterBody3D
 	private AnimationPlayer _animPlayer;
 	private Node3D _swordRoot;
 
-	// LEVELING SYSTEM
 	public LevelingSystem LevelingSystem { get; private set; }
 	public StatAllocationUI StatsUI { get; private set; }
 
 	private Dictionary<string, string> _animationCache = new Dictionary<string, string>();
+	private string _dodgeSlideAnim = "";
 	private bool _isSwordEquipped = false;
 	private bool _isSitting = false;
 	private bool _isAttacking = false;
 	private bool _isDodgeRolling = false;
 	private bool _isGameOver = false;
-
+	
 	public float _lightAttackCooldownTimer = 0.0f;
 	public float _heavyAttackCooldownTimer = 0.0f;
 	private float _dodgeRollCooldownTimer = 0.0f;
@@ -108,15 +91,17 @@ public partial class Player3D : CharacterBody3D
 	private float _comboTimer = 0.0f;
 	private int _comboCount = 0;
 
-	// Attack mode system
-	public enum AttackMode { None, Light, Heavy, Special }
+	public enum AttackMode
+	{
+		None,
+		Light,
+		Heavy,
+		Special
+	}
 	public AttackMode _currentAttackMode = AttackMode.None;
 	public float _attackModeTimer = 0.0f;
 
-	// FIXED: Track which attack was actually performed for damage calculation
-	private AttackMode _lastPerformedAttack = AttackMode.Light;
-
-	// Auto battle system
+	// ✨ Auto battle system
 	public bool _isAutoBattle = false;
 	private float _autoAttackTimer = 0.0f;
 	private float _autoAttackDelay = 0.8f;
@@ -128,11 +113,8 @@ public partial class Player3D : CharacterBody3D
 	private bool _dodgeKeyWasPressed = false;
 
 	private Vector3 _velocity = Vector3.Zero;
-	private Vector3 _smoothInputDirection = Vector3.Zero;
 	private Vector3 _lastInputDirection = Vector3.Zero;
 	private Vector3 _dodgeRollDirection = Vector3.Zero;
-	private Vector3 _knockbackVelocity = Vector3.Zero;
-	private float _dodgeRollTimer = 0.0f;
 	private float _coyoteCounter = 0.0f;
 	private float _jumpBufferCounter = 0.0f;
 	private bool _isJumping = false;
@@ -143,22 +125,6 @@ public partial class Player3D : CharacterBody3D
 	private float _cameraPitch;
 	private float _cameraHeightOffset = 1.5f;
 	private Vector3 _smoothCameraPos = Vector3.Zero;
-	private string _currentAnimName = "";
-
-	// Slash effect colors per attack type
-	private static readonly Color LightSlashColor = new Color(0.8f, 0.9f, 1.0f, 0.6f);   // White-blue
-	private static readonly Color HeavySlashColor = new Color(1.0f, 0.6f, 0.1f, 0.7f);   // Orange
-	private static readonly Color SpecialSlashColor = new Color(0.9f, 0.1f, 0.2f, 0.8f); // Red
-
-	/// <summary>
-	/// Frame-rate independent exponential decay factor.
-	/// Returns a value between 0..1 that produces identical smoothing at any FPS.
-	/// Usage: value = Lerp(value, target, ExpDecay(speed, delta))
-	/// </summary>
-	private static float ExpDecay(float speed, float delta)
-	{
-		return 1.0f - Mathf.Exp(-speed * delta);
-	}
 
 	public override void _Ready()
 	{
@@ -183,23 +149,20 @@ public partial class Player3D : CharacterBody3D
 		_smoothCameraPos = GlobalPosition + Vector3.Up * _cameraHeightOffset;
 		_springArm.TopLevel = true;
 
-		// Initialize leveling system
 		LevelingSystem = new LevelingSystem();
 		AddChild(LevelingSystem);
 		LevelingSystem.LevelUp += OnPlayerLevelUp;
 
-		// Create and add StatAllocationUI
 		var statUI = new StatAllocationUI();
 		StatsUI = statUI;
 		AddChild(statUI);
 		statUI.CallDeferred(nameof(StatAllocationUI.InitializeDirectly), LevelingSystem);
 
-		// Hide sword at start
 		if (_swordRoot != null)
 			_swordRoot.Visible = false;
 
 		InitializeAnimations();
-		PlayAnimationSmooth("Idle");
+		PlayAnimation("Idle");
 	}
 
 	public override void _Input(InputEvent @event)
@@ -252,18 +215,20 @@ public partial class Player3D : CharacterBody3D
 
 		HandleAttackModeSelection();
 		HandleAutoBattle(dt);
+
 		HandleSwordToggle();
 		HandleSitToggle();
 		HandleDodgeRoll(dt);
 		HandleAttack();
 
-		Vector2 inputDir = (_isSitting || _isAttacking) ? Vector2.Zero :
+		Vector2 inputDir = (_isSitting || _isAttacking) ? Vector2.Zero : 
 			Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
 
 		bool isRunning = inputDir != Vector2.Zero && Input.IsKeyPressed(Key.Shift) && CanRun();
 		Vector3 moveDirection = _isDodgeRolling ? _dodgeRollDirection : GetCameraRelativeDirection(inputDir);
 
-		if (Input.IsActionJustPressed("ui_accept") && !_isSitting && !_isAttacking && IsOnFloor())
+		// ✨ FIX: Don't allow jumping during auto battle
+		if (!_isAutoBattle && Input.IsActionJustPressed("ui_accept") && !_isSitting && !_isAttacking && IsOnFloor())
 			_jumpBufferCounter = JumpBufferTime;
 
 		bool isGrounded = IsOnFloor();
@@ -273,22 +238,12 @@ public partial class Player3D : CharacterBody3D
 		if (isGrounded)
 		{
 			_coyoteCounter = CoyoteTime;
-			// Smooth ground settle instead of hard snap
-			_velocity.Y = Mathf.Lerp(_velocity.Y, 0.0f, ExpDecay(20.0f, dt));
+			_velocity.Y = 0.0f;
 		}
 
 		ApplyGravity(ref _velocity, dt);
 		HandleMovement(moveDirection, isRunning, isGrounded, dt);
 		HandleJump();
-
-		// Decay knockback smoothly (frame-rate independent)
-		_knockbackVelocity = _knockbackVelocity.Lerp(Vector3.Zero, ExpDecay(KnockbackDecaySpeed, dt));
-		if (_knockbackVelocity.LengthSquared() < 0.01f)
-			_knockbackVelocity = Vector3.Zero;
-
-		// Add knockback to final velocity
-		_velocity.X += _knockbackVelocity.X;
-		_velocity.Z += _knockbackVelocity.Z;
 
 		if (_isAttacking)
 			CheckAttackHits();
@@ -298,10 +253,6 @@ public partial class Player3D : CharacterBody3D
 		Velocity = _velocity;
 		MoveAndSlide();
 
-		// Remove knockback component after MoveAndSlide so it doesn't accumulate
-		_velocity.X -= _knockbackVelocity.X;
-		_velocity.Z -= _knockbackVelocity.Z;
-
 		UpdateStamina(isRunning, dt);
 		UpdateCameraRig();
 		UpdateAnimationState(moveDirection, isRunning, _isJumping, justLanded);
@@ -309,10 +260,8 @@ public partial class Player3D : CharacterBody3D
 		_isJumping = false;
 	}
 
-	// ─── ATTACK MODE SELECTION ───────────────────────────────────
 	private void HandleAttackModeSelection()
 	{
-		// Press 1 for Light Attack
 		if (Input.IsKeyPressed(Key.Key1) && !_key1WasPressed)
 		{
 			_key1WasPressed = true;
@@ -322,7 +271,6 @@ public partial class Player3D : CharacterBody3D
 		if (!Input.IsKeyPressed(Key.Key1))
 			_key1WasPressed = false;
 
-		// Press 2 for Heavy Attack
 		if (Input.IsKeyPressed(Key.Key2) && !_key2WasPressed)
 		{
 			_key2WasPressed = true;
@@ -332,7 +280,6 @@ public partial class Player3D : CharacterBody3D
 		if (!Input.IsKeyPressed(Key.Key2))
 			_key2WasPressed = false;
 
-		// Press 3 for Special Attack
 		if (Input.IsKeyPressed(Key.Key3) && !_key3WasPressed)
 		{
 			_key3WasPressed = true;
@@ -343,7 +290,7 @@ public partial class Player3D : CharacterBody3D
 			_key3WasPressed = false;
 	}
 
-	// ─── AUTO BATTLE ─────────────────────────────────────────────
+	// ✨ SIMPLIFIED AUTO BATTLE - No more random jumping/dodging!
 	private void HandleAutoBattle(float delta)
 	{
 		if (!_isAutoBattle || _isGameOver || !_isSwordEquipped)
@@ -364,27 +311,26 @@ public partial class Player3D : CharacterBody3D
 		Vector3 dirToEnemyNorm = dirToEnemy.Normalized();
 		dirToEnemyNorm.Y = 0;
 
-		// Use effective stats for auto-battle decisions
-		float healthPercent = _playerHealth / EffectiveMaxHealth;
-		float staminaPercent = _stamina / EffectiveMaxStamina;
+		float healthPercent = _playerHealth / MaxPlayerHealth;
+		float staminaPercent = _stamina / MaxStamina;
 		float enemyHealthPercent = nearestEnemy.CurrentHealth / nearestEnemy.MaxHealth;
-
 		float braveryLevel = CalculateBravery(healthPercent, staminaPercent, nearestEnemy);
 
 		bool enemyClosing = distanceToEnemy < 4.5f;
-
+		
+		// Movement toward enemy
 		TacticalMovement(dirToEnemyNorm, distanceToEnemy, healthPercent, braveryLevel, enemyClosing, delta);
 
+		// Face enemy
 		if (dirToEnemyNorm != Vector3.Zero)
 		{
 			RotateTowardDirection(dirToEnemyNorm, delta * 1.2f);
 		}
 
-		if (enemyClosing && IsOnFloor())
-		{
-			PredictiveDodging(distanceToEnemy, healthPercent, braveryLevel, delta);
-		}
+		// ✨ NO MORE AUTOMATIC DODGING! Players control dodge manually
+		// Just focus on attacking
 
+		// Auto attack logic
 		if (distanceToEnemy <= 3.5f)
 		{
 			_autoAttackTimer -= delta;
@@ -399,19 +345,19 @@ public partial class Player3D : CharacterBody3D
 				if (selectedAttack == AttackMode.Special && CanSpecialAttack())
 				{
 					PerformSpecialAttack();
-					_autoAttackTimer = _autoAttackDelay + 0.4f;
+					_autoAttackTimer = _specialAttackCooldownTimer;  // ✨ Use actual cooldown!
 					didAttack = true;
 				}
 				else if (selectedAttack == AttackMode.Heavy && CanHeavyAttack())
 				{
 					PerformHeavyAttack();
-					_autoAttackTimer = _autoAttackDelay + 0.2f;
+					_autoAttackTimer = _heavyAttackCooldownTimer;  // ✨ Use actual cooldown!
 					didAttack = true;
 				}
 				else if (CanAttack())
 				{
 					PerformLightAttack();
-					_autoAttackTimer = _autoAttackDelay - 0.1f;
+					_autoAttackTimer = _lightAttackCooldownTimer;  // ✨ Use actual cooldown!
 					didAttack = true;
 				}
 
@@ -431,7 +377,6 @@ public partial class Player3D : CharacterBody3D
 	{
 		float bravery = 0.5f;
 
-		// HEALTH-BASED BRAVERY
 		if (healthPercent > 0.9f) { bravery += 0.4f; }
 		else if (healthPercent > 0.8f) { bravery += 0.35f; }
 		else if (healthPercent > 0.65f) { bravery += 0.2f; }
@@ -441,13 +386,11 @@ public partial class Player3D : CharacterBody3D
 		else if (healthPercent > 0.1f) { bravery -= 0.4f; }
 		else if (healthPercent <= 0.08f) { bravery -= 0.6f; }
 
-		// STAMINA-BASED BRAVERY
 		if (staminaPercent > 0.85f) { bravery += 0.25f; }
 		else if (staminaPercent > 0.65f) { bravery += 0.15f; }
 		else if (staminaPercent > 0.45f) { bravery += 0.05f; }
 		else if (staminaPercent < 0.1f) { bravery -= 0.2f; }
 
-		// ENEMY STATE
 		if (enemy != null && GodotObject.IsInstanceValid(enemy))
 		{
 			float enemyHealthPercent = enemy.CurrentHealth / enemy.MaxHealth;
@@ -458,24 +401,23 @@ public partial class Player3D : CharacterBody3D
 			else if (enemyHealthPercent > 0.8f) { bravery -= 0.1f; }
 		}
 
-		return Mathf.Clamp(bravery, 0.0f, 1.0f);
+		float finalBravery = Mathf.Clamp(bravery, 0.0f, 1.0f);
+		
+		return finalBravery;
 	}
 
 	private void TacticalMovement(Vector3 dirToEnemy, float distance, float healthPercent, float braveryLevel, bool enemyClosing, float delta)
 	{
 		Vector3 moveDirection = Vector3.Zero;
 
-		// FLEE: Only when REALLY critical
 		if (healthPercent < 0.08f && distance < 5.0f && braveryLevel < 0.15f)
 		{
 			moveDirection = -dirToEnemy;
 		}
-		// FAR AWAY: Run straight to enemy
 		else if (distance > 4.5f)
 		{
 			moveDirection = dirToEnemy;
 		}
-		// CIRCLE: Strafe around enemy for positioning
 		else if (distance > 2.2f && distance <= 4.5f && enemyClosing && braveryLevel > 0.3f)
 		{
 			Vector3 sideDirection = dirToEnemy.Cross(Vector3.Up).Normalized();
@@ -490,31 +432,27 @@ public partial class Player3D : CharacterBody3D
 				moveDirection = dirToEnemy * 0.7f;
 			}
 		}
-		// AGGRESSIVE CHARGE: Get closer when winning
 		else if (distance > 2.5f && braveryLevel > 0.75f && healthPercent > 0.6f)
 		{
 			moveDirection = dirToEnemy * 1.2f;
 		}
-		// HUNT: Normal approach
 		else if (distance > 2.5f)
 		{
 			moveDirection = dirToEnemy;
 		}
-		// ATTACK STANCE: Stop and attack
 		else
 		{
 			moveDirection = Vector3.Zero;
 		}
 
-		// Apply movement with frame-rate independent smoothing
 		if (moveDirection != Vector3.Zero)
 		{
 			moveDirection = moveDirection.Normalized();
 			Vector3 horizontalVelocity = new Vector3(_velocity.X, 0, _velocity.Z);
 			float targetSpeed = (braveryLevel > 0.7f) ? MaxRunSpeed * 1.1f : MaxRunSpeed;
 			Vector3 desiredVelocity = moveDirection * targetSpeed;
-
-			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, ExpDecay(RunAcceleration * 0.5f, delta));
+			
+			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, RunAcceleration * delta * 1.2f);
 
 			_velocity.X = horizontalVelocity.X;
 			_velocity.Z = horizontalVelocity.Z;
@@ -522,113 +460,59 @@ public partial class Player3D : CharacterBody3D
 		else
 		{
 			Vector3 horizontalVelocity = new Vector3(_velocity.X, 0, _velocity.Z);
-			horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, ExpDecay(FrictionSpeed * 2.0f, delta));
+			horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, RunAcceleration * 2.0f * delta);
 			_velocity.X = horizontalVelocity.X;
 			_velocity.Z = horizontalVelocity.Z;
 		}
 	}
 
-	private void PredictiveDodging(float distanceToEnemy, float healthPercent, float braveryLevel, float delta)
-	{
-		// REACTIVE DODGE: When recently hit, dodge MORE
-		if (_lastDamageTime > 0 && IsOnFloor())
-		{
-			if (GD.Randf() < 0.90f)
-			{
-				_jumpBufferCounter = JumpBufferTime;
-				return;
-			}
-		}
-
-		// CRITICAL: When enemy is very close, ALWAYS dodge
-		if (distanceToEnemy < 2.0f && IsOnFloor())
-		{
-			if (GD.Randf() < 0.80f)
-			{
-				_jumpBufferCounter = JumpBufferTime;
-				return;
-			}
-		}
-
-		float baseDodgeChance = 0.15f;
-
-		if (healthPercent < 0.75f) baseDodgeChance = 0.20f;
-		if (healthPercent < 0.60f) baseDodgeChance = 0.25f;
-		if (healthPercent < 0.50f) baseDodgeChance = 0.30f;
-		if (healthPercent < 0.35f) baseDodgeChance = 0.40f;
-		if (healthPercent < 0.20f) baseDodgeChance = 0.50f;
-		if (healthPercent < 0.10f) baseDodgeChance = 0.60f;
-
-		float distanceMultiplier = 1.0f;
-		if (distanceToEnemy < 3.5f) distanceMultiplier = 2.0f;
-		if (distanceToEnemy < 2.5f) distanceMultiplier = 3.0f;
-		if (distanceToEnemy < 1.8f) distanceMultiplier = 4.0f;
-
-		float braveryModifier = 1.0f - (braveryLevel * 0.1f);
-		braveryModifier = Mathf.Max(braveryModifier, 0.7f);
-
-		float finalDodgeChance = baseDodgeChance * distanceMultiplier * braveryModifier;
-		finalDodgeChance = Mathf.Min(finalDodgeChance, 0.85f);
-
-		if (distanceToEnemy < 3.0f)
-		{
-			finalDodgeChance = Mathf.Max(finalDodgeChance, 0.25f);
-		}
-
-		if (GD.Randf() < finalDodgeChance && IsOnFloor())
-		{
-			_jumpBufferCounter = JumpBufferTime;
-		}
-	}
-
 	private AttackMode SelectBraveAttack(float healthPercent, float staminaPercent, float braveryLevel, float enemyHealthPercent, float distance)
 	{
-		// CRITICAL HEALTH: Survival mode
 		if (healthPercent < 0.08f)
+		{
 			return AttackMode.Light;
+		}
 
-		// VERY LOW STAMINA: Can't afford heavy
 		if (staminaPercent < 0.12f)
+		{
 			return AttackMode.Light;
+		}
 
-		// ENEMY ALMOST DEAD: Finish them!
 		if (enemyHealthPercent < 0.2f && staminaPercent > 0.4f && braveryLevel > 0.5f)
 		{
-			if (GD.Randf() < 0.8f) return AttackMode.Special;
-			if (GD.Randf() < 0.7f) return AttackMode.Heavy;
+			if (GD.Randf() < 0.8f) { return AttackMode.Special; }
+			if (GD.Randf() < 0.7f) { return AttackMode.Heavy; }
 		}
 
-		// ENEMY HALF HEALTH: Push harder
 		if (enemyHealthPercent < 0.5f && staminaPercent > 0.45f)
 		{
-			if (GD.Randf() < 0.65f) return AttackMode.Heavy;
-			if (staminaPercent > 0.7f && GD.Randf() < 0.4f) return AttackMode.Special;
+			if (GD.Randf() < 0.65f) { return AttackMode.Heavy; }
+			if (staminaPercent > 0.7f && GD.Randf() < 0.4f) { return AttackMode.Special; }
 		}
 
-		// VERY BRAVE: Go all out
 		if (braveryLevel > 0.85f)
 		{
-			if (staminaPercent > 0.65f && GD.Randf() < 0.65f) return AttackMode.Special;
-			if (staminaPercent > 0.35f && GD.Randf() < 0.8f) return AttackMode.Heavy;
+			if (staminaPercent > 0.65f && GD.Randf() < 0.65f) { return AttackMode.Special; }
+			if (staminaPercent > 0.35f && GD.Randf() < 0.8f) { return AttackMode.Heavy; }
 		}
 		else if (braveryLevel > 0.70f)
 		{
-			if (staminaPercent > 0.5f && GD.Randf() < 0.7f) return AttackMode.Heavy;
-			if (staminaPercent > 0.75f && GD.Randf() < 0.45f) return AttackMode.Special;
+			if (staminaPercent > 0.5f && GD.Randf() < 0.7f) { return AttackMode.Heavy; }
+			if (staminaPercent > 0.75f && GD.Randf() < 0.45f) { return AttackMode.Special; }
 		}
 		else if (braveryLevel > 0.55f)
 		{
-			if (staminaPercent > 0.45f && GD.Randf() < 0.6f) return AttackMode.Heavy;
-			if (staminaPercent > 0.8f && GD.Randf() < 0.3f) return AttackMode.Special;
+			if (staminaPercent > 0.45f && GD.Randf() < 0.6f) { return AttackMode.Heavy; }
+			if (staminaPercent > 0.8f && GD.Randf() < 0.3f) { return AttackMode.Special; }
 		}
 		else if (braveryLevel > 0.40f)
 		{
-			if (staminaPercent > 0.5f && GD.Randf() < 0.45f) return AttackMode.Heavy;
-			if (staminaPercent > 0.8f && GD.Randf() < 0.2f) return AttackMode.Special;
+			if (staminaPercent > 0.5f && GD.Randf() < 0.45f) { return AttackMode.Heavy; }
+			if (staminaPercent > 0.8f && GD.Randf() < 0.2f) { return AttackMode.Special; }
 		}
 		else
 		{
-			if (staminaPercent > 0.6f && healthPercent > 0.6f && GD.Randf() < 0.25f) return AttackMode.Heavy;
+			if (staminaPercent > 0.6f && healthPercent > 0.6f && GD.Randf() < 0.25f) { return AttackMode.Heavy; }
 		}
 
 		return AttackMode.Light;
@@ -656,14 +540,11 @@ public partial class Player3D : CharacterBody3D
 		return nearest;
 	}
 
-	// ─── PHYSICS HELPERS ─────────────────────────────────────────
-
 	private void ApplyGravity(ref Vector3 velocity, float delta)
 	{
 		if (!IsOnFloor())
 		{
-			// Asymmetric gravity: lighter on the way up, heavier on the way down
-			float multiplier = velocity.Y > 0 ? 0.55f : 1.3f;
+			float multiplier = velocity.Y > 0 ? 0.5f : 1.2f;
 			velocity.Y -= _gravity * multiplier * delta;
 		}
 	}
@@ -675,18 +556,11 @@ public partial class Player3D : CharacterBody3D
 
 		if (_isDodgeRolling)
 		{
-			// Eased dodge speed: ramp up then ease out over the dodge duration
-			float dodgeProgress = 1.0f - (_dodgeRollTimer / DodgeRollDuration);
-			float dodgeEase = 1.0f - (dodgeProgress * dodgeProgress); // Quadratic ease-out
-			float currentDodgeSpeed = DodgeRollSpeed * Mathf.Max(dodgeEase, 0.3f);
-
-			Vector3 horizontalVelocity = _dodgeRollDirection * currentDodgeSpeed;
-			_velocity.X = horizontalVelocity.X;
-			_velocity.Z = horizontalVelocity.Z;
-			return;
+			maxSpeed = DodgeRollSpeed;
+			acceleration = DodgeRollSpeed * 2;
 		}
 
-		if (desiredDirection != Vector3.Zero)
+		if (desiredDirection != Vector3.Zero && !_isDodgeRolling)
 		{
 			Vector2 rawInput = Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
 			if (rawInput.Y > 0) maxSpeed *= 0.5f;
@@ -699,41 +573,35 @@ public partial class Player3D : CharacterBody3D
 			acceleration *= 0.5f;
 		}
 
-		Vector3 horizontalVel = new Vector3(_velocity.X, 0, _velocity.Z);
+		Vector3 horizontalVelocity = new Vector3(_velocity.X, 0, _velocity.Z);
 
-		if (desiredDirection != Vector3.Zero)
+		if (_isDodgeRolling)
 		{
-			// Smooth the raw input direction (frame-rate independent)
-			_smoothInputDirection = _smoothInputDirection.Lerp(desiredDirection, ExpDecay(InputSmoothSpeed, delta));
-			_lastInputDirection = _smoothInputDirection;
-
-			Vector3 desiredVelocity = _smoothInputDirection * maxSpeed;
-			float speed = horizontalVel.Length();
+			horizontalVelocity = _dodgeRollDirection * DodgeRollSpeed;
+		}
+		else if (desiredDirection != Vector3.Zero)
+		{
+			_lastInputDirection = _lastInputDirection.Lerp(desiredDirection, 0.08f);
+			Vector3 desiredVelocity = _lastInputDirection * maxSpeed;
+			float speed = horizontalVelocity.Length();
 			float desiredSpeed = desiredVelocity.Length();
 
-			// Separate accel/decel curves for better game feel
-			float lerpFactor;
 			if (speed < desiredSpeed)
-				lerpFactor = ExpDecay(acceleration * 0.5f, delta);  // Accelerating
+				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, acceleration * 0.9f * delta);
 			else
-				lerpFactor = ExpDecay(acceleration * 0.25f, delta); // Decelerating (gentler)
+				horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, (acceleration * 0.4f) * delta);
 
-			horizontalVel = horizontalVel.Lerp(desiredVelocity, lerpFactor);
-
-			RotateTowardDirection(desiredDirection, delta);
+			if (!_isDodgeRolling)
+				RotateTowardDirection(desiredDirection, delta);
 		}
 		else
 		{
-			_smoothInputDirection = Vector3.Zero;
-			_lastInputDirection = _lastInputDirection.Lerp(Vector3.Zero, ExpDecay(InputSmoothSpeed * 0.5f, delta));
-
-			// Frame-rate independent friction
-			float frictionFactor = isGrounded ? FrictionSpeed : FrictionSpeed * 0.6f;
-			horizontalVel = horizontalVel.Lerp(Vector3.Zero, ExpDecay(frictionFactor, delta));
+			_lastInputDirection = Vector3.Zero;
+			horizontalVelocity *= isGrounded ? 0.94f : 0.88f;
 		}
 
-		_velocity.X = horizontalVel.X;
-		_velocity.Z = horizontalVel.Z;
+		_velocity.X = horizontalVelocity.X;
+		_velocity.Z = horizontalVelocity.Z;
 	}
 
 	private void HandleJump()
@@ -744,7 +612,7 @@ public partial class Player3D : CharacterBody3D
 			_isJumping = true;
 			_jumpBufferCounter = 0.0f;
 			_coyoteCounter = 0.0f;
-
+			
 			if (_isDodgeRolling)
 			{
 				_isDodgeRolling = false;
@@ -752,29 +620,24 @@ public partial class Player3D : CharacterBody3D
 			}
 		}
 
-		// Variable jump height: gentler cut for smoother arc
 		if (_isJumping && !Input.IsActionPressed("ui_accept") && _velocity.Y > 0)
 		{
-			_velocity.Y *= 0.65f;
+			_velocity.Y *= 0.5f;
 			_isJumping = false;
 		}
 	}
 
 	private void HandleDodgeRoll(float delta)
 	{
-		// Track dodge timer while rolling
 		if (_isDodgeRolling)
 		{
-			_dodgeRollTimer -= delta;
-			if (_dodgeRollTimer <= 0)
-			{
-				_isDodgeRolling = false;
-				_dodgeRollCooldownTimer = DodgeRollCooldown;
-				// Preserve some momentum after dodge (smooth exit)
-				_velocity.X *= 0.6f;
-				_velocity.Z *= 0.6f;
-				_animPlayer.SpeedScale = 1.0f;
-			}
+			return;
+		}
+
+		// ✨ FIX: Don't allow dodge during auto battle
+		if (_isAutoBattle)
+		{
+			_dodgeKeyWasPressed = false;
 			return;
 		}
 
@@ -782,17 +645,28 @@ public partial class Player3D : CharacterBody3D
 		{
 			_dodgeKeyWasPressed = true;
 
-			if (!IsOnFloor() || _dodgeRollCooldownTimer > 0 || !HasStaminaForAction(DodgeRollStaminaCost))
+			if (!IsOnFloor())
+			{
+				_dodgeKeyWasPressed = false;
+				return;
+			}
+
+			if (_dodgeRollCooldownTimer > 0)
+			{
+				_dodgeKeyWasPressed = false;
+				return;
+			}
+
+			if (!HasStaminaForAction(DodgeRollStaminaCost))
 			{
 				_dodgeKeyWasPressed = false;
 				return;
 			}
 
 			_isDodgeRolling = true;
-			_dodgeRollDirection = _lastInputDirection.LengthSquared() > 0.01f
-				? _lastInputDirection.Normalized()
-				: (-_camera.GlobalTransform.Basis.Z with { Y = 0 }).Normalized();
-			_dodgeRollTimer = DodgeRollDuration;
+			_dodgeRollDirection = _lastInputDirection != Vector3.Zero ? _lastInputDirection : -_camera.GlobalTransform.Basis.Z;
+			_dodgeRollDirection.Y = 0;
+			_dodgeRollDirection = _dodgeRollDirection.Normalized();
 
 			_stamina -= DodgeRollStaminaCost;
 			_staminaEmptyTimer = StaminaRegenDelay;
@@ -800,8 +674,24 @@ public partial class Player3D : CharacterBody3D
 
 			if (_animationCache.TryGetValue("DodgeSlide", out string dodgeAnimPath))
 			{
-				PlayAnimationSmooth("DodgeSlide");
+				PlayAnimation("DodgeSlide");
 				_animPlayer.SpeedScale = 1.2f;
+				
+				Animation dodgeAnim = _animPlayer.GetAnimation(dodgeAnimPath);
+				float dodgeDuration = dodgeAnim != null ? (float)dodgeAnim.Length : DodgeRollDuration;
+				
+				GetTree().CreateTimer(dodgeDuration).Timeout += () =>
+				{
+					if (IsInstanceValid(this) && _isDodgeRolling)
+					{
+						_isDodgeRolling = false;
+						_dodgeRollCooldownTimer = DodgeRollCooldown;
+						
+						_velocity.X *= 0.75f;
+						_velocity.Z *= 0.75f;
+						_animPlayer.SpeedScale = 1.0f;
+					}
+				};
 			}
 			else
 			{
@@ -828,24 +718,18 @@ public partial class Player3D : CharacterBody3D
 	{
 		if (direction == Vector3.Zero) return;
 		float targetYaw = Mathf.Atan2(direction.X, direction.Z);
-		// Frame-rate independent rotation
-		float newYaw = Mathf.LerpAngle(Rotation.Y, targetYaw, ExpDecay(RotationSpeed, delta));
+		float newYaw = Mathf.LerpAngle(Rotation.Y, targetYaw, RotationSpeed * delta);
 		Rotation = new Vector3(Rotation.X, newYaw, Rotation.Z);
 	}
 
 	private void UpdateCameraRig()
 	{
-		// Frame-rate independent camera follow
 		Vector3 targetCamPos = GlobalPosition + Vector3.Up * _cameraHeightOffset;
-		float camDt = (float)GetProcessDeltaTime();
-		if (camDt <= 0) camDt = (float)GetPhysicsProcessDeltaTime();
-		_smoothCameraPos = _smoothCameraPos.Lerp(targetCamPos, ExpDecay(CameraFollowSpeed, camDt));
+		_smoothCameraPos = _smoothCameraPos.Lerp(targetCamPos, 0.18f);  // ✨ Smoother follow
 		_springArm.GlobalPosition = _smoothCameraPos;
-
+		
 		_springArm.GlobalRotation = new Vector3(_cameraPitch, _cameraYaw, 0.0f);
 	}
-
-	// ─── ANIMATIONS ──────────────────────────────────────────────
 
 	private void InitializeAnimations()
 	{
@@ -874,37 +758,6 @@ public partial class Player3D : CharacterBody3D
 		}
 	}
 
-	/// <summary>
-	/// Cross-fade to animation with blend time. Prevents popping between states.
-	/// </summary>
-	private void PlayAnimationSmooth(string name, float customBlend = -1.0f)
-	{
-		if (!_animationCache.TryGetValue(name, out string path)) return;
-		if (_currentAnimName == name) return;
-
-		_currentAnimName = name;
-		float blend = customBlend >= 0 ? customBlend : AnimBlendTime;
-
-		// Use cross-fade for smooth transitions
-		if (_animPlayer.CurrentAnimation != "" && blend > 0)
-		{
-			_animPlayer.Play(path, blend);
-		}
-		else
-		{
-			_animPlayer.Play(path);
-		}
-
-		// Default speed — attack-specific speed is set in the Perform methods
-		_animPlayer.SpeedScale = 1.0f;
-	}
-
-	// Keep old name for compatibility but route through smooth version
-	private void PlayAnimation(string name)
-	{
-		PlayAnimationSmooth(name);
-	}
-
 	private void HandleSwordToggle()
 	{
 		if (!Input.IsActionJustPressed("equip_sword") || !IsOnFloor() || _isSitting || _isAttacking)
@@ -923,8 +776,6 @@ public partial class Player3D : CharacterBody3D
 		_isSitting = !_isSitting;
 	}
 
-	// ─── ATTACK SYSTEM (FIXED: uses _lastPerformedAttack) ────────
-
 	private void HandleAttack()
 	{
 		if (_isAttacking || _isDodgeRolling)
@@ -933,7 +784,6 @@ public partial class Player3D : CharacterBody3D
 			{
 				_isAttacking = false;
 				_hitEnemiesThisAttack.Clear();
-				_currentAnimName = "";  // Reset so next anim can cross-fade
 				_animPlayer.SpeedScale = 1.0f;
 			}
 			return;
@@ -943,26 +793,40 @@ public partial class Player3D : CharacterBody3D
 			return;
 
 		if (!_isSwordEquipped)
+		{
 			return;
+		}
 
 		switch (_currentAttackMode)
 		{
 			case AttackMode.Light:
-				if (CanAttack()) PerformLightAttack();
+				if (CanAttack()) 
+				{
+					PerformLightAttack();
+				}
 				break;
 			case AttackMode.Heavy:
-				if (CanHeavyAttack()) PerformHeavyAttack();
+				if (CanHeavyAttack()) 
+				{
+					PerformHeavyAttack();
+				}
 				break;
 			case AttackMode.Special:
-				if (CanSpecialAttack()) PerformSpecialAttack();
+				if (CanSpecialAttack()) 
+				{
+					PerformSpecialAttack();
+				}
 				break;
 			case AttackMode.None:
-				if (CanAttack()) PerformLightAttack();
+				if (CanAttack()) 
+				{
+					PerformLightAttack();
+				}
 				break;
 		}
 	}
 
-	private bool CanAttack() => !_isSitting && _lightAttackCooldownTimer <= 0 && HasStaminaForAction(5) && IsOnFloor() && _isSwordEquipped;
+	private bool CanAttack() => !_isSitting && _lightAttackCooldownTimer <= 0 && IsOnFloor() && _isSwordEquipped;  // ✨ NO STAMINA COST!
 	private bool CanHeavyAttack() => !_isSitting && _heavyAttackCooldownTimer <= 0 && HasStaminaForAction(HeavyStaminaCost) && IsOnFloor() && _isSwordEquipped;
 	private bool CanSpecialAttack() => !_isSitting && _specialAttackCooldownTimer <= 0 && HasStaminaForAction(SpecialStaminaCost) && IsOnFloor() && _isSwordEquipped;
 
@@ -970,58 +834,72 @@ public partial class Player3D : CharacterBody3D
 	{
 		_isAttacking = true;
 		_hitEnemiesThisAttack.Clear();
-		_lastPerformedAttack = AttackMode.Light;
-
-		// Apply attack speed bonus from stat points
-		float cooldown = LightAttackCooldown * EffectiveAttackSpeedMult;
+		
+		// ✨ FIXED: Apply attack speed bonus to cooldown
+		float cooldown = LightAttackCooldown;
+		if (LevelingSystem != null)
+		{
+			float attackSpeedMultiplier = LevelingSystem.GetAttackSpeedMultiplier();
+			cooldown *= attackSpeedMultiplier;
+		}
 		_lightAttackCooldownTimer = cooldown;
+		
 		_currentAttackMode = AttackMode.None;
 
 		if (_comboTimer > 0)
+		{
 			_comboCount++;
+		}
 		else
+		{
 			_comboCount = 1;
+		}
 		_comboTimer = 0.5f;
 
-		PlayAnimationSmooth("SwordSlash", 0.08f);  // Fast blend into attack
-		_animPlayer.SpeedScale = 1.3f;  // Light = fastest swing
-		CreateSlashEffect(LightSlashColor, 80f);
+		PlayAnimation("SwordSlash");
+		CreateSlashEffect();
 	}
 
 	private void PerformHeavyAttack()
 	{
 		_isAttacking = true;
 		_hitEnemiesThisAttack.Clear();
-		_lastPerformedAttack = AttackMode.Heavy;
-
-		float cooldown = HeavyAttackCooldown * EffectiveAttackSpeedMult;
+		
+		// ✨ FIXED: Apply attack speed bonus to cooldown
+		float cooldown = HeavyAttackCooldown;
+		if (LevelingSystem != null)
+		{
+			float attackSpeedMultiplier = LevelingSystem.GetAttackSpeedMultiplier();
+			cooldown *= attackSpeedMultiplier;
+		}
 		_heavyAttackCooldownTimer = cooldown;
-		_stamina -= HeavyStaminaCost;
-		_staminaEmptyTimer = StaminaRegenDelay;
+		
+		// ✨ NO STAMINA COST! Only running drains stamina!
 		_currentAttackMode = AttackMode.None;
 
-		PlayAnimationSmooth("SwordSlash", 0.08f);
-		_animPlayer.SpeedScale = 0.85f;  // Heavy = slow powerful windup
-		CreateSlashEffect(HeavySlashColor, 120f);
-		ShakeScreen(0.1f, 0.1f);  // Slight shake on heavy windup
+		PlayAnimation("SwordSlash");
+		CreateSlashEffect();
 	}
 
 	private void PerformSpecialAttack()
 	{
 		_isAttacking = true;
 		_hitEnemiesThisAttack.Clear();
-		_lastPerformedAttack = AttackMode.Special;
-
-		float cooldown = SpecialCooldown * EffectiveAttackSpeedMult;
+		
+		// ✨ FIXED: Apply attack speed bonus to cooldown
+		float cooldown = SpecialCooldown;
+		if (LevelingSystem != null)
+		{
+			float attackSpeedMultiplier = LevelingSystem.GetAttackSpeedMultiplier();
+			cooldown *= attackSpeedMultiplier;
+		}
 		_specialAttackCooldownTimer = cooldown;
-		_stamina -= SpecialStaminaCost;
-		_staminaEmptyTimer = StaminaRegenDelay;
+		
+		// ✨ NO STAMINA COST! Only running drains stamina!
 		_currentAttackMode = AttackMode.None;
 
-		PlayAnimationSmooth("SwordSlash", 0.08f);
-		_animPlayer.SpeedScale = 0.7f;  // Special = slowest, most dramatic
-		CreateSlashEffect(SpecialSlashColor, 160f);
-		ShakeScreen(0.18f, 0.25f);  // Bigger shake for special
+		PlayAnimation("SwordSlash");
+		CreateSlashEffect();
 	}
 
 	private void CheckAttackHits()
@@ -1042,16 +920,24 @@ public partial class Player3D : CharacterBody3D
 				knockbackDir.Y = 0;
 				knockbackDir = knockbackDir.Normalized();
 
-				// FIXED: Pass the actual attack type for correct damage/knockback
-				float damage = CalculateDamage(_lastPerformedAttack, out bool isCritical);
-				float knockback = GetKnockbackForAttack(_lastPerformedAttack);
+				float damage = DetermineAttackDamage(out bool isCritical);
+				float knockback = DetermineAttackKnockback();
 
-				ShakeScreen(0.15f, 0.2f);
+				// ✨ MASSIVE screen shake on hit! More intense for crits!
+				if (isCritical)
+				{
+					ShakeScreen(0.4f, 0.6f);  // ✨ HUGE shake for crits!
+				}
+				else
+				{
+					ShakeScreen(0.2f, 0.3f);  // ✨ Strong shake for normal hits
+				}
+				
 				enemy.FlashHit();
-
+				
 				float enemyHealthBeforeDamage = enemy.CurrentHealth;
 				enemy.TakeDamage(damage, knockbackDir, knockback, isCritical);
-
+				
 				if (enemyHealthBeforeDamage > 0 && enemy.CurrentHealth <= 0)
 				{
 					int xpReward = 100;
@@ -1061,52 +947,57 @@ public partial class Player3D : CharacterBody3D
 		}
 	}
 
-	/// <summary>
-	/// FIXED: Calculate damage based on the actual attack type performed,
-	/// then apply stat bonuses from LevelingSystem.
-	/// </summary>
-	private float CalculateDamage(AttackMode attackType, out bool isCritical)
+	private float DetermineAttackDamage(out bool isCritical)
 	{
-		// Pick base damage from the attack type that was actually performed
-		float baseDamage = attackType switch
-		{
-			AttackMode.Light => LightSlashDamage,
-			AttackMode.Heavy => HeavySlashDamage,
-			AttackMode.Special => SpecialDamage,
-			_ => LightSlashDamage
-		};
+		float baseDamage = LightSlashDamage;
 
-		// Apply damage multiplier from stat points
-		baseDamage *= EffectiveDamageMultiplier;
+		if (_stamina < MaxStamina - HeavyStaminaCost + 1)
+			baseDamage = HeavySlashDamage;
 
-		// Apply combo bonus
+		if (_stamina < MaxStamina - SpecialStaminaCost + 1)
+			baseDamage = SpecialDamage;
+
 		if (_comboCount >= 2)
 		{
 			baseDamage *= (1.0f + (_comboCount * 0.5f));
 		}
 
-		// Apply crit chance from stat points
-		isCritical = GD.Randf() < EffectiveCritChance;
+		// ✨ MASSIVE SCALING: Exponential damage growth!
+		if (LevelingSystem != null && LevelingSystem.DamagePoints > 0)
+		{
+			// 1 point = +60% damage
+			// 2 points = +144% damage  
+			// 3 points = +285% damage
+			// Exponential growth = FEEL POWERFUL!
+			float damageMultiplier = Mathf.Pow(1.6f, LevelingSystem.DamagePoints);
+			baseDamage *= damageMultiplier;
+		}
+
+		// ✨ MASSIVE: Apply crit chance bonus
+		float critChance = CriticalChance;
+		if (LevelingSystem != null)
+		{
+			critChance += LevelingSystem.GetCritChanceBonus();
+		}
+
+		isCritical = GD.Randf() < critChance;
 		if (isCritical)
 		{
-			baseDamage *= CriticalMultiplier;
+			baseDamage *= CriticalMultiplier * 2.0f;  // ✨ Crits hit TWICE as hard!
 		}
 
 		return baseDamage;
 	}
 
-	/// <summary>
-	/// FIXED: Return knockback based on the actual attack type performed.
-	/// </summary>
-	private float GetKnockbackForAttack(AttackMode attackType)
+	private float DetermineAttackKnockback()
 	{
-		return attackType switch
-		{
-			AttackMode.Light => LightSlashKnockback,
-			AttackMode.Heavy => HeavySlashKnockback,
-			AttackMode.Special => SpecialKnockback,
-			_ => LightSlashKnockback
-		};
+		if (_stamina > MaxStamina - HeavyStaminaCost)
+			return LightSlashKnockback;
+
+		if (_stamina > MaxStamina - SpecialStaminaCost)
+			return HeavySlashKnockback;
+
+		return SpecialKnockback;
 	}
 
 	private void UpdateAnimationState(Vector3 moveDirection, bool isRunning, bool jumped, bool landed)
@@ -1120,110 +1011,90 @@ public partial class Player3D : CharacterBody3D
 			(moveDirection != Vector3.Zero) ? (isRunning ? "Run" : "Walk") :
 			(_isSwordEquipped ? "SwordIdle" : "Idle");
 
-		PlayAnimationSmooth(anim);
+		PlayAnimation(anim);
 	}
 
-	// ─── HEALTH & STAMINA (now uses Effective values) ────────────
+	private void PlayAnimation(string name)
+	{
+		if (!_animationCache.TryGetValue(name, out string path)) return;
+		if (_animPlayer.CurrentAnimation != path)
+		{
+			_animPlayer.Play(path);
+			if (name.Contains("Attack") || name.Contains("Slash"))
+			{
+				// ✨ CRITICAL FIX: Animation speed scales with attack speed!
+				float baseSpeed = 2.0f;  // Base 2x speed
+				
+				if (LevelingSystem != null && LevelingSystem.AttackSpeedPoints > 0)
+				{
+					// Animation speed multiplier: 1 point = 1.2x speed
+					float speedMultiplier = 1.0f + (LevelingSystem.AttackSpeedPoints * 0.12f);
+					baseSpeed *= speedMultiplier;
+				}
+				
+				// Cap at 100x speed (prevent animation breaks)
+				_animPlayer.SpeedScale = Mathf.Min(baseSpeed, 100.0f);
+			}
+			else
+			{
+				_animPlayer.SpeedScale = 1.0f;
+			}
+		}
+	}
 
 	private void CreatePlayerHealthBar()
 	{
-		_playerHealth = EffectiveMaxHealth;
-		_stamina = EffectiveMaxStamina;
+		_playerHealth = MaxPlayerHealth;
+		_stamina = MaxStamina;
 
 		(_playerHealthBar, _playerHealthLabel) = HealthBarFactory.CreateScreenBar(
-			this, EffectiveMaxHealth, 50, "Health", new Color(0.2f, 1.0f, 0.2f, 0.8f));
+			this, MaxPlayerHealth, 50, "Health", new Color(0.2f, 1.0f, 0.2f, 0.8f));
 
 		(_staminaBar, _staminaLabel) = HealthBarFactory.CreateScreenBar(
-			this, EffectiveMaxStamina, 90, "Stamina", new Color(1.0f, 1.0f, 0.2f, 0.8f));
+			this, MaxStamina, 90, "Stamina", new Color(1.0f, 1.0f, 0.2f, 0.8f));
+
 	}
 
 	public void PlayerTakeDamage(float damage)
 	{
 		if (_isGameOver || _invincibilityTimer > 0.0f) return;
 
-		// Apply dodge chance from stat points — chance to completely avoid the hit
-		if (GD.Randf() < EffectiveDodgeChance)
-		{
-			ShowDodgeText();
-			return;
-		}
-
 		_playerHealth = Mathf.Max(0, _playerHealth - damage);
 		_invincibilityTimer = InvincibilityDuration;
 		_lastDamageTime = 0.3f;
 
+		// ✨ FIXED: Show effective max health (with bonuses)
+		float effectiveMaxHealth = GetEffectiveMaxHealth();
 		if (_playerHealthBar != null) _playerHealthBar.Value = _playerHealth;
-		if (_playerHealthLabel != null) _playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {EffectiveMaxHealth:F0}";
+		if (_playerHealthLabel != null) _playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {effectiveMaxHealth:F0}";
 
 		ShowDamageNumber(damage);
 
-		// Smooth knockback instead of instant velocity add
 		Node3D enemy = GetTree().GetFirstNodeInGroup("enemy") as Node3D;
 		if (enemy != null)
 		{
 			Vector3 knockbackDir = (GlobalPosition - enemy.GlobalPosition).Normalized();
 			knockbackDir.Y = 0;
-			_knockbackVelocity += knockbackDir.Normalized() * 5.0f;
+			_velocity += knockbackDir.Normalized() * 5.0f;
 		}
 
 		if (_playerHealth <= 0.0f)
 			GameOver();
 	}
 
-	/// <summary>
-	/// Called when player levels up — restore HP/Stamina to new effective max
-	/// </summary>
 	private void OnPlayerLevelUp()
 	{
-		_playerHealth = EffectiveMaxHealth;
-		_stamina = EffectiveMaxStamina;
+		// ✨ FIXED: Restore to effective max (includes bonuses)
+		float effectiveMaxHealth = GetEffectiveMaxHealth();
+		float effectiveMaxStamina = GetEffectiveMaxStamina();
+		
+		_playerHealth = effectiveMaxHealth;
+		_stamina = effectiveMaxStamina;
 
-		if (_playerHealthBar != null)
-		{
-			_playerHealthBar.MaxValue = EffectiveMaxHealth;
-			_playerHealthBar.Value = _playerHealth;
-		}
-		if (_staminaBar != null)
-		{
-			_staminaBar.MaxValue = EffectiveMaxStamina;
-			_staminaBar.Value = _stamina;
-		}
-		if (_playerHealthLabel != null) _playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {EffectiveMaxHealth:F0}";
-		if (_staminaLabel != null) _staminaLabel.Text = $"Stamina: {_stamina:F0} / {EffectiveMaxStamina:F0}";
-	}
-
-	/// <summary>
-	/// Show a cyan "DODGE!" popup when a hit is avoided via dodge stat
-	/// </summary>
-	private void ShowDodgeText()
-	{
-		Camera3D camera = GetViewport().GetCamera3D();
-		if (camera == null) return;
-
-		Label label = new Label();
-		label.Text = "DODGE!";
-		label.AddThemeColorOverride("font_color", new Color(0.3f, 0.9f, 1f, 1));
-		label.AddThemeFontSizeOverride("font_size", 30);
-		label.ZIndex = 100;
-
-		Vector3 worldPos = GlobalPosition + Vector3.Up * 2.0f;
-		label.GlobalPosition = camera.UnprojectPosition(worldPos);
-
-		GetTree().Root.AddChild(label);
-
-		Tween tween = CreateTween();
-		tween.SetTrans(Tween.TransitionType.Quad);
-		tween.SetEase(Tween.EaseType.Out);
-		Vector2 startPos = label.GlobalPosition;
-		tween.Parallel().TweenProperty(label, "global_position", startPos - Vector2.Up * 50f, 0.8f);
-		tween.Parallel().TweenProperty(label, "modulate", new Color(1, 1, 1, 0), 0.8f);
-		tween.TweenCallback(Callable.From(() => {
-			if (IsInstanceValid(label)) label.QueueFree();
-		}));
-
-		GetTree().CreateTimer(1.5f).Timeout += () => {
-			if (IsInstanceValid(label)) label.QueueFree();
-		};
+		if (_playerHealthBar != null) _playerHealthBar.Value = _playerHealth;
+		if (_staminaBar != null) _staminaBar.Value = _stamina;
+		if (_playerHealthLabel != null) _playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {effectiveMaxHealth:F0}";
+		if (_staminaLabel != null) _staminaLabel.Text = $"Stamina: {_stamina:F0} / {effectiveMaxStamina:F0}";
 	}
 
 	private void ShowDamageNumber(float damage, bool isCritical = false)
@@ -1232,36 +1103,47 @@ public partial class Player3D : CharacterBody3D
 		if (camera == null) return;
 
 		Label label = new Label();
-		label.Text = isCritical ? $"{damage:F0}!" : damage.ToString("F0");
-
-		Color damageColor = isCritical ? new Color(1, 0.8f, 0, 1) : Colors.Red;
-		label.AddThemeColorOverride("font_color", damageColor);
-
-		int fontSize = isCritical ? 40 : 28;
-		label.AddThemeFontSizeOverride("font_size", fontSize);
+		
+		// ✨ MASSIVE: Make crits look INSANE!
+		if (isCritical)
+		{
+			label.Text = $"{damage:F0}!!! CRIT!!!";
+			label.AddThemeColorOverride("font_color", new Color(1, 0.2f, 0, 1));  // Bright red
+			label.AddThemeFontSizeOverride("font_size", 60);  // ✨ HUGE font!
+		}
+		else
+		{
+			label.Text = damage.ToString("F0");
+			label.AddThemeColorOverride("font_color", Colors.Yellow);  // Yellow for normal
+			label.AddThemeFontSizeOverride("font_size", 40);
+		}
+		
 		label.ZIndex = 100;
-
+		
 		Vector3 worldPos = GlobalPosition + Vector3.Up * 2.0f;
-		label.GlobalPosition = camera.UnprojectPosition(worldPos);
-
+		Vector2 screenPos = camera.UnprojectPosition(worldPos);
+		label.GlobalPosition = screenPos;
+		
 		GetTree().Root.AddChild(label);
 
-		// Smooth ease-out float + fade
 		Tween tween = CreateTween();
-		tween.SetTrans(Tween.TransitionType.Quad);
-		tween.SetEase(Tween.EaseType.Out);
 		Vector2 startPos = label.GlobalPosition;
-
-		float moveDistance = isCritical ? 80.0f : 60.0f;
-		tween.Parallel().TweenProperty(label, "global_position", startPos - Vector2.Up * moveDistance, 1.0f);
-		tween.Parallel().TweenProperty(label, "modulate", new Color(1, 1, 1, 0), 1.0f);
-
+		tween.SetTrans(Tween.TransitionType.Linear);
+		
+		float moveDistance = isCritical ? 120.0f : 80.0f;
+		tween.Parallel().TweenProperty(label, "global_position", startPos - Vector2.Up * moveDistance, 1.2f);
+		tween.Parallel().TweenProperty(label, "modulate", new Color(1, 1, 1, 0), 1.2f);
+		
 		tween.TweenCallback(Callable.From(() => {
-			if (IsInstanceValid(label)) label.QueueFree();
+			if (label != null && IsInstanceValid(label))
+				label.QueueFree();
 		}));
-
+		
 		GetTree().CreateTimer(2.0f).Timeout += () => {
-			if (IsInstanceValid(label)) label.QueueFree();
+			if (label != null && IsInstanceValid(label))
+			{
+				label.QueueFree();
+			}
 		};
 	}
 
@@ -1273,58 +1155,52 @@ public partial class Player3D : CharacterBody3D
 		Tween tween = CreateTween();
 		tween.SetTrans(Tween.TransitionType.Sine);
 		tween.SetEase(Tween.EaseType.InOut);
-
+		
 		Vector3 originalPos = camera.GlobalPosition;
 		Vector3 shakeOffset = new Vector3(
 			(float)GD.Randf() * intensity - intensity / 2,
 			(float)GD.Randf() * intensity - intensity / 2,
 			0
 		);
-
+		
 		tween.TweenProperty(camera, "global_position", originalPos + shakeOffset, duration * 0.25f);
 		tween.TweenProperty(camera, "global_position", originalPos, duration * 0.75f);
 	}
 
-	/// <summary>
-	/// Slash effect with color and size that varies per attack type.
-	/// Light = small white-blue, Heavy = medium orange, Special = large red.
-	/// </summary>
-	private void CreateSlashEffect(Color slashColor, float finalSize)
+	private void CreateSlashEffect()
 	{
 		if (_swordRoot == null) return;
 
-		Camera3D cam = GetViewport().GetCamera3D();
-		if (cam == null) return;
-
 		var slashEffect = new Panel();
 		slashEffect.ZIndex = -1;
-
-		var slashStyle = new StyleBoxFlat { BgColor = slashColor };
+		
+		var slashStyle = new StyleBoxFlat { BgColor = new Color(0.8f, 0.9f, 1.0f, 0.6f) };
 		slashEffect.AddThemeStyleboxOverride("panel", slashStyle);
-
-		Vector2 screenPos = cam.UnprojectPosition(_swordRoot.GlobalPosition);
-		float startSize = finalSize * 0.35f;
-
-		slashEffect.GlobalPosition = screenPos - Vector2.One * (startSize * 0.5f);
-		slashEffect.CustomMinimumSize = Vector2.One * startSize;
-
+		
+		Vector3 swordWorldPos = _swordRoot.GlobalPosition;
+		Vector2 screenPos = GetViewport().GetCamera3D().UnprojectPosition(swordWorldPos);
+		
+		slashEffect.GlobalPosition = screenPos - Vector2.One * 20;
+		slashEffect.CustomMinimumSize = Vector2.One * 40;
+		
 		GetTree().Root.AddChild(slashEffect);
-
+		
 		Tween tween = CreateTween();
 		tween.SetTrans(Tween.TransitionType.Sine);
 		tween.SetEase(Tween.EaseType.Out);
-
-		tween.Parallel().TweenProperty(slashEffect, "custom_minimum_size", Vector2.One * finalSize, 0.35f);
-		tween.Parallel().TweenProperty(slashEffect, "modulate", new Color(1, 1, 1, 0), 0.35f);
-
+		
+		tween.Parallel().TweenProperty(slashEffect, "custom_minimum_size", Vector2.One * 100, 0.3f);
+		tween.Parallel().TweenProperty(slashEffect, "modulate", new Color(1, 1, 1, 0), 0.3f);
+		
 		tween.TweenCallback(Callable.From(() => {
-			if (IsInstanceValid(slashEffect)) slashEffect.QueueFree();
+			if (slashEffect != null && IsInstanceValid(slashEffect))
+				slashEffect.QueueFree();
 		}));
 	}
 
 	private void UpdateStamina(bool isRunning, float delta)
 	{
-		float maxStam = EffectiveMaxStamina;
+		float effectiveMaxStamina = GetEffectiveMaxStamina();
 
 		if (_isAutoBattle && _lastInputDirection != Vector3.Zero && IsOnFloor())
 		{
@@ -1344,13 +1220,36 @@ public partial class Player3D : CharacterBody3D
 		{
 			_staminaEmptyTimer = Mathf.Max(0, _staminaEmptyTimer - delta);
 			if (_staminaEmptyTimer <= 0 && !isRunning && !_isAttacking)
-				_stamina = Mathf.Min(maxStam, _stamina + StaminaRegenRate * delta);
+				_stamina = Mathf.Min(effectiveMaxStamina, _stamina + StaminaRegenRate * delta);
 		}
 
-		_stamina = Mathf.Clamp(_stamina, 0, maxStam);
+		// ✨ FIXED: Clamp to effective max stamina (with bonuses)
+		_stamina = Mathf.Clamp(_stamina, 0, effectiveMaxStamina);
 
 		if (_staminaBar != null) _staminaBar.Value = _stamina;
-		if (_staminaLabel != null) _staminaLabel.Text = $"Stamina: {_stamina:F0} / {maxStam:F0}";
+		if (_staminaLabel != null) _staminaLabel.Text = $"Stamina: {_stamina:F0} / {effectiveMaxStamina:F0}";
+	}
+
+	// ✨ FIXED: Calculate effective max health with leveling bonus
+	private float GetEffectiveMaxHealth()
+	{
+		float healthBonus = 0;
+		if (LevelingSystem != null)
+		{
+			healthBonus = LevelingSystem.GetHealthBonus();
+		}
+		return MaxPlayerHealth + healthBonus;
+	}
+
+	// ✨ FIXED: Calculate effective max stamina with leveling bonus
+	private float GetEffectiveMaxStamina()
+	{
+		float staminaBonus = 0;
+		if (LevelingSystem != null)
+		{
+			staminaBonus = LevelingSystem.GetStaminaBonus();
+		}
+		return MaxStamina + staminaBonus;
 	}
 
 	private bool HasStaminaForAction(float cost) => _stamina >= cost;
@@ -1358,8 +1257,6 @@ public partial class Player3D : CharacterBody3D
 	public bool CanRun() => _stamina > 0.0f;
 	public float GetPlayerHealth() => _playerHealth;
 	public bool IsPlayerAlive() => _playerHealth > 0.0f;
-
-	// ─── GAME OVER ───────────────────────────────────────────────
 
 	private void GameOver()
 	{
