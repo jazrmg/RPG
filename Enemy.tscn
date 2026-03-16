@@ -6,8 +6,9 @@
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_2vx13"]
 height = 1.934082
 
-[node name="Enemy" type="CharacterBody3D" unique_id=1622683073]
+[node name="Enemy_Vampire" type="CharacterBody3D" unique_id=1622683073]
 script = ExtResource("1_s7bn3")
+EnemyTypeToSpawn = 1
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=191392584]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.009101391, 1.0007324, 0)
@@ -17,7 +18,7 @@ shape = SubResource("CapsuleShape3D_2vx13")
 
 [node name="MonsterModel" parent="." unique_id=1265631801 instance=ExtResource("1_tt7e2")]
 
-[node name="Skeleton3D" parent="MonsterModel" index="0" unique_id=890559622]
+[node name="Skeleton3D" parent="MonsterModel" index="0" unique_id=1255625730]
 bones/0/position = Vector3(0.0004387519, 0.78210664, -0.0022001788)
 bones/0/rotation = Quaternion(0.04044806, 0.28090218, 0.036411803, 0.9581921)
 bones/1/rotation = Quaternion(0.0750789, 0.008513419, 0.024148073, 0.9968488)

@@ -4,6 +4,7 @@ using System;
 /// <summary>
 /// ✨ REAL-TIME STAT ALLOCATION UI - Updates every frame!
 /// Shows actual bonus values and attack speed multiplier in real-time
+/// FULLY RESPONSIVE - Works on all screen sizes!
 /// </summary>
 public partial class StatAllocationUI : CanvasLayer
 {
@@ -32,9 +33,33 @@ public partial class StatAllocationUI : CanvasLayer
 		new Color(1f, 0.6f, 0.2f, 1)       // Orange - Crit
 	};
 
+	// ✨ RESPONSIVE: UI scale values
+	private Vector2 _screenSize;
+	private float _uiScale = 1.0f;
+
 	public override void _Ready()
 	{
 		Layer = 100;
+		
+		// ✨ RESPONSIVE: Get initial screen size
+		_screenSize = GetViewport().GetVisibleRect().Size;
+		CalculateUIScale();
+	}
+
+	// ✨ RESPONSIVE: Calculate UI scale based on screen size
+	private void CalculateUIScale()
+	{
+		// Reference: 1920x1080 (full HD)
+		float referenceWidth = 1920f;
+
+		// Get current viewport size
+		Vector2 viewportSize = GetViewport().GetVisibleRect().Size;
+
+		// Calculate scale based on width
+		_uiScale = viewportSize.X / referenceWidth;
+
+		// Clamp between 0.5x and 2.0x
+		_uiScale = Mathf.Clamp(_uiScale, 0.5f, 2.0f);
 	}
 
 	public void InitializeDirectly(LevelingSystem levelingSystem)
@@ -56,7 +81,7 @@ public partial class StatAllocationUI : CanvasLayer
 
 	private void CreateUI()
 	{
-		// ✨ MASSIVE panel
+		// ✨ MASSIVE panel (responsive sizing)
 		_panel = new PanelContainer();
 		_panel.AnchorLeft = 0.1f;
 		_panel.AnchorTop = 0.1f;
@@ -64,44 +89,44 @@ public partial class StatAllocationUI : CanvasLayer
 		_panel.AnchorBottom = 0.9f;
 		
 		var bgStyle = new StyleBoxFlat { BgColor = new Color(0.05f, 0.05f, 0.15f, 0.98f) };
-		bgStyle.SetBorderWidthAll(6);
+		bgStyle.SetBorderWidthAll((int)(6 * _uiScale));
 		bgStyle.BorderColor = new Color(1, 1, 0, 1);
 		_panel.AddThemeStyleboxOverride("panel", bgStyle);
 
 		var mainVBox = new VBoxContainer();
-		mainVBox.AddThemeConstantOverride("separation", 15);
+		mainVBox.AddThemeConstantOverride("separation", (int)(15 * _uiScale));
 		_panel.AddChild(mainVBox);
 
-		// ✨ TITLE
+		// ✨ TITLE (responsive)
 		_levelLabel = new Label { Text = "⭐ STAT ALLOCATION - LEVEL 1" };
 		_levelLabel.AddThemeColorOverride("font_color", new Color(1, 1, 0, 1));
-		_levelLabel.AddThemeFontSizeOverride("font_size", 48);
+		_levelLabel.AddThemeFontSizeOverride("font_size", (int)(48 * _uiScale));
 		_levelLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		mainVBox.AddChild(_levelLabel);
 
-		// ✨ INFO ROW
+		// ✨ INFO ROW (responsive)
 		var infoBox = new HBoxContainer();
-		infoBox.AddThemeConstantOverride("separation", 30);
-		infoBox.CustomMinimumSize = new Vector2(0, 60);
+		infoBox.AddThemeConstantOverride("separation", (int)(30 * _uiScale));
+		infoBox.CustomMinimumSize = new Vector2(0, 60 * _uiScale);
 		mainVBox.AddChild(infoBox);
 
 		_availablePointsLabel = new Label { Text = "🟢 AVAILABLE: 0" };
 		_availablePointsLabel.AddThemeColorOverride("font_color", new Color(0, 1, 0, 1));
-		_availablePointsLabel.AddThemeFontSizeOverride("font_size", 32);
+		_availablePointsLabel.AddThemeFontSizeOverride("font_size", (int)(32 * _uiScale));
 		infoBox.AddChild(_availablePointsLabel);
 
 		_spentPointsLabel = new Label { Text = "📊 SPENT: 0" };
 		_spentPointsLabel.AddThemeColorOverride("font_color", new Color(1, 0.7f, 0, 1));
-		_spentPointsLabel.AddThemeFontSizeOverride("font_size", 32);
+		_spentPointsLabel.AddThemeFontSizeOverride("font_size", (int)(32 * _uiScale));
 		infoBox.AddChild(_spentPointsLabel);
 
 		// ✨ SEPARATOR
 		var separator = new HSeparator();
 		mainVBox.AddChild(separator);
 
-		// ✨ STATS GRID
+		// ✨ STATS GRID (responsive)
 		_statsContainer = new VBoxContainer();
-		_statsContainer.AddThemeConstantOverride("separation", 12);
+		_statsContainer.AddThemeConstantOverride("separation", (int)(12 * _uiScale));
 		mainVBox.AddChild(_statsContainer);
 
 		for (int i = 0; i < 6; i++)
@@ -111,37 +136,37 @@ public partial class StatAllocationUI : CanvasLayer
 			int index = i;
 
 			var statRow = new HBoxContainer();
-			statRow.AddThemeConstantOverride("separation", 15);
-			statRow.CustomMinimumSize = new Vector2(0, 90);
+			statRow.AddThemeConstantOverride("separation", (int)(15 * _uiScale));
+			statRow.CustomMinimumSize = new Vector2(0, 90 * _uiScale);
 			_statsContainer.AddChild(statRow);
 
-			// ✨ ICON + NAME (fixed width)
+			// ✨ ICON + NAME (responsive)
 			var nameLabel = new Label { Text = $"{_statIcons[i]} {statName}" };
 			nameLabel.AddThemeColorOverride("font_color", color);
-			nameLabel.AddThemeFontSizeOverride("font_size", 26);
-			nameLabel.CustomMinimumSize = new Vector2(220, 0);
+			nameLabel.AddThemeFontSizeOverride("font_size", (int)(26 * _uiScale));
+			nameLabel.CustomMinimumSize = new Vector2(220 * _uiScale, 0);
 			statRow.AddChild(nameLabel);
 
-			// ✨ POINTS (fixed width)
+			// ✨ POINTS (responsive)
 			var pointsLabel = new Label { Text = "Pts: 0" };
 			pointsLabel.AddThemeColorOverride("font_color", Colors.White);
-			pointsLabel.AddThemeFontSizeOverride("font_size", 22);
-			pointsLabel.CustomMinimumSize = new Vector2(140, 0);
+			pointsLabel.AddThemeFontSizeOverride("font_size", (int)(22 * _uiScale));
+			pointsLabel.CustomMinimumSize = new Vector2(140 * _uiScale, 0);
 			_pointLabels[i] = pointsLabel;
 			statRow.AddChild(pointsLabel);
 
-			// ✨ BONUS (fixed width, expandable)
+			// ✨ BONUS (responsive)
 			var bonusLabel = new Label { Text = "Bonus: +0" };
 			bonusLabel.AddThemeColorOverride("font_color", Colors.Yellow);
-			bonusLabel.AddThemeFontSizeOverride("font_size", 22);
-			bonusLabel.CustomMinimumSize = new Vector2(300, 0);
+			bonusLabel.AddThemeFontSizeOverride("font_size", (int)(22 * _uiScale));
+			bonusLabel.CustomMinimumSize = new Vector2(300 * _uiScale, 0);
 			_bonusLabels[i] = bonusLabel;
 			statRow.AddChild(bonusLabel);
 
-			// ✨ HUGE BUTTON
+			// ✨ HUGE BUTTON (responsive)
 			var btn = new Button { Text = "+ ALLOCATE" };
-			btn.CustomMinimumSize = new Vector2(220, 90);
-			btn.AddThemeFontSizeOverride("font_size", 26);
+			btn.CustomMinimumSize = new Vector2(220 * _uiScale, 90 * _uiScale);
+			btn.AddThemeFontSizeOverride("font_size", (int)(26 * _uiScale));
 			btn.AddThemeColorOverride("font_color", Colors.Black);
 
 			var normalStyle = new StyleBoxFlat { BgColor = color };
@@ -165,10 +190,10 @@ public partial class StatAllocationUI : CanvasLayer
 			statRow.AddChild(btn);
 		}
 
-		// ✨ FOOTER
+		// ✨ FOOTER (responsive)
 		var footerLabel = new Label { Text = "Press Z to close | Click button to allocate point | Updates in REAL-TIME!" };
 		footerLabel.AddThemeColorOverride("font_color", Colors.White);
-		footerLabel.AddThemeFontSizeOverride("font_size", 18);
+		footerLabel.AddThemeFontSizeOverride("font_size", (int)(18 * _uiScale));
 		footerLabel.HorizontalAlignment = HorizontalAlignment.Center;
 		mainVBox.AddChild(footerLabel);
 
@@ -245,6 +270,14 @@ public partial class StatAllocationUI : CanvasLayer
 
 	public override void _Process(double delta)
 	{
+		// ✨ RESPONSIVE: Check for screen resize
+		Vector2 newScreenSize = GetViewport().GetVisibleRect().Size;
+		if (newScreenSize != _screenSize)
+		{
+			_screenSize = newScreenSize;
+			CalculateUIScale();
+		}
+
 		// ✨ UPDATE EVERY SINGLE FRAME!
 		if (Visible && _levelSystem != null)
 		{
