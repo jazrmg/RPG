@@ -389,8 +389,10 @@ public partial class SkillUIManager : Control
 
 	private void UpdateBars()
 	{
+		_healthBar.MaxValue = _player.MaxPlayerHealth;
 		_healthLabel.Text = $"{_player._playerHealth:F0} / {_player.MaxPlayerHealth:F0}";
 		_healthBar.Value = _player._playerHealth;
+		_staminaBar.MaxValue = _player.MaxStamina;
 		_staminaLabel.Text = $"{_player._stamina:F0} / {_player.MaxStamina:F0}";
 		_staminaBar.Value = _player._stamina;
 	}

@@ -26,10 +26,9 @@ public static class AnimationHelper
 			return null;
 		}
 
-		// Remove Hips position track (keep rotation)
 		for (int i = anim.GetTrackCount() - 1; i >= 0; i--)
 		{
-			if (anim.TrackGetPath(i).ToString().Contains("Hips") && anim.TrackGetType(i) == Animation.TrackType.Position3D)
+			if (anim.TrackGetType(i) == Animation.TrackType.Position3D)
 				anim.RemoveTrack(i);
 		}
 
@@ -39,7 +38,6 @@ public static class AnimationHelper
 
 	private static Animation FindAnimation(AnimationPlayer animPlayer)
 	{
-		// Look for "mixamo_com" first
 		foreach (string lib in animPlayer.GetAnimationLibraryList())
 		{
 			AnimationLibrary library = animPlayer.GetAnimationLibrary(lib);
@@ -47,7 +45,6 @@ public static class AnimationHelper
 				return (Animation)library.GetAnimation("mixamo_com").Duplicate();
 		}
 
-		// Fallback to any animation (skip "Take 001")
 		foreach (string lib in animPlayer.GetAnimationLibraryList())
 		{
 			AnimationLibrary library = animPlayer.GetAnimationLibrary(lib);
