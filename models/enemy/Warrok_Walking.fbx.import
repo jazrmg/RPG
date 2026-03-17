@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cvvtgf2rogqbq"
-path="res://.godot/imported/Monster.fbx-d7dd76d036675a86f023ad8e263e8def.scn"
+uid="uid://dqh7eamk62454"
+path="res://.godot/imported/Warrok_Walking.fbx-2eb0a5792853405ba4f74ce93ed09c00.scn"
 
 [deps]
 
-source_file="res://models/enemy/Monster.fbx"
-dest_files=["res://.godot/imported/Monster.fbx-d7dd76d036675a86f023ad8e263e8def.scn"]
+source_file="res://models/enemy/Warrok_Walking.fbx"
+dest_files=["res://.godot/imported/Warrok_Walking.fbx-2eb0a5792853405ba4f74ce93ed09c00.scn"]
 
 [params]
 

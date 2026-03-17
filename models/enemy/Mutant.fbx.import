@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cfyugck1gcdf"
-path="res://.godot/imported/Vampire_A_Lusth.fbx-d737bd91945cd0cdafa6cb7deb583a03.scn"
+uid="uid://cvvtgf2rogqbq"
+path="res://.godot/imported/Mutant.fbx-b182f23974f6fdde2ed4ea392ae8c10b.scn"
 
 [deps]
 
-source_file="res://models/enemy/Vampire_A_Lusth.fbx"
-dest_files=["res://.godot/imported/Vampire_A_Lusth.fbx-d737bd91945cd0cdafa6cb7deb583a03.scn"]
+source_file="res://models/enemy/Mutant.fbx"
+dest_files=["res://.godot/imported/Mutant.fbx-b182f23974f6fdde2ed4ea392ae8c10b.scn"]
 
 [params]
 

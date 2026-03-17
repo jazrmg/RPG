@@ -2,24 +2,23 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cfovj2l2w2cxr"
-path.s3tc="res://.godot/imported/Vampire_A_Lusth_1.png-741671ecd2a577838defd0db0907aabe.s3tc.ctex"
+uid="uid://dfqqh1riuwwp6"
+path="res://.godot/imported/Warrok_Walking_1.png-040fdd14c4d9d2c453df666ffdef3371.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 generator_parameters={
-"md5": "2d089a7f494e06c928600b21982ff180"
+"md5": "41008a95128332ec6f804cd26eab6827"
 }
 
 [deps]
 
-source_file="res://models/enemy/Vampire_A_Lusth_1.png"
-dest_files=["res://.godot/imported/Vampire_A_Lusth_1.png-741671ecd2a577838defd0db0907aabe.s3tc.ctex"]
+source_file="res://models/enemy/Warrok_Walking_1.png"
+dest_files=["res://.godot/imported/Warrok_Walking_1.png-040fdd14c4d9d2c453df666ffdef3371.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -41,4 +40,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

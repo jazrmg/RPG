@@ -3,17 +3,20 @@ using System.Collections.Generic;
 
 public partial class Enemy : CharacterBody3D
 {
+	// ✨ ENEMY TYPE SYSTEM - But keep scene structure intact
 	public enum EnemyType
 	{
-		Monster,
-		Vampire,
-		Warrok
+		Monster,   // Tank - Slow, tanky, strong
+		Vampire,   // Balanced - Medium all around
+		Warrok     // Agile - Fast, weak, deadly
 	}
 
 	[Export] public EnemyType EnemyTypeToSpawn = EnemyType.Monster;
 
+	// ✨ TYPE-SPECIFIC PROPERTIES
 	private Dictionary<EnemyType, EnemyStats> _typeStats = new();
 
+	// ✨ Structure for type-specific data
 	public struct EnemyStats
 	{
 		public float Health;
@@ -22,8 +25,15 @@ public partial class Enemy : CharacterBody3D
 		public float AttackSpeed;
 		public float Scale;
 		public Color ColorTint;
-		public string ModelPath;
 		public string TypeName;
+		public ParticleType AttackParticleType;
+	}
+
+	public enum ParticleType
+	{
+		Heavy,      // Monster - slow, heavy particles
+		Balanced,   // Vampire - normal particles
+		Quick       // Warrok - fast, light particles
 	}
 
 	[Export] public float Speed = 2.5f;
@@ -41,6 +51,7 @@ public partial class Enemy : CharacterBody3D
 	[Export] public float DamageToPlayer = 15.0f;
 	[Export] public float AttackCooldown = 0.8f;
 
+	// ✨ PUBLIC ACCESS: Current health for auto battle AI
 	public float CurrentHealth => _currentHealth;
 
 	private const string PlayerGroup = "player";
@@ -56,6 +67,7 @@ public partial class Enemy : CharacterBody3D
 	private ProgressBar _healthBar;
 	private CanvasLayer _healthBarCanvas;
 	private string _walkAnim = "";
+	private string _deathAnim = "";
 	private string _attackAnim = "";
 
 	private bool _isWalking = false;
@@ -68,8 +80,8 @@ public partial class Enemy : CharacterBody3D
 	private bool _isInitialized = false;
 	private float _attackCooldownTimer = 0.0f;
 
+	// ✨ CURRENT TYPE DATA
 	private EnemyStats _currentStats;
-	private Node3D _characterModel;
 
 	public override void _Ready()
 	{
@@ -78,8 +90,10 @@ public partial class Enemy : CharacterBody3D
 		SetupEnemy();
 	}
 
+	// ✨ Initialize all type stats
 	private void InitializeTypeStats()
 	{
+		// MONSTER - Tank (slow, tanky, strong)
 		_typeStats[EnemyType.Monster] = new EnemyStats
 		{
 			Health = 180f,
@@ -87,11 +101,12 @@ public partial class Enemy : CharacterBody3D
 			Speed = 1.5f,
 			AttackSpeed = 0.9f,
 			Scale = 1.2f,
-			ColorTint = new Color(0.3f, 0.8f, 0.3f, 1),
-			ModelPath = "res://models/enemy/Monster.fbx",
-			TypeName = "Monster"
+			ColorTint = new Color(0.3f, 0.8f, 0.3f, 1),  // Green
+			TypeName = "Monster",
+			AttackParticleType = ParticleType.Heavy
 		};
 
+		// VAMPIRE - Balanced (medium all around)
 		_typeStats[EnemyType.Vampire] = new EnemyStats
 		{
 			Health = 120f,
@@ -99,11 +114,12 @@ public partial class Enemy : CharacterBody3D
 			Speed = 2.5f,
 			AttackSpeed = 1.0f,
 			Scale = 1.0f,
-			ColorTint = new Color(0.9f, 0.2f, 0.2f, 1),
-			ModelPath = "res://models/enemy/Vampire_A_Lusth.fbx",
-			TypeName = "Vampire"
+			ColorTint = new Color(0.9f, 0.2f, 0.2f, 1),  // Red
+			TypeName = "Vampire",
+			AttackParticleType = ParticleType.Balanced
 		};
 
+		// WARROK - Agile (fast, weak, deadly)
 		_typeStats[EnemyType.Warrok] = new EnemyStats
 		{
 			Health = 70f,
@@ -111,9 +127,9 @@ public partial class Enemy : CharacterBody3D
 			Speed = 4.0f,
 			AttackSpeed = 1.3f,
 			Scale = 0.9f,
-			ColorTint = new Color(0.2f, 0.8f, 1.0f, 1),
-			ModelPath = "res://models/enemy/Warrok_W_Kurniawan.fbx",
-			TypeName = "Warrok"
+			ColorTint = new Color(0.2f, 0.8f, 1.0f, 1),  // Cyan
+			TypeName = "Warrok",
+			AttackParticleType = ParticleType.Quick
 		};
 	}
 
@@ -121,19 +137,27 @@ public partial class Enemy : CharacterBody3D
 	{
 		if (_isInitialized) return;
 
+		// ✨ Get current type stats
 		_currentStats = _typeStats[EnemyTypeToSpawn];
 
+		// ✨ Apply type stats to exports
 		MaxHealth = _currentStats.Health;
 		DamageToPlayer = _currentStats.Damage;
 		Speed = _currentStats.Speed;
 		AttackCooldown = _currentStats.AttackSpeed;
+
+		// ✨ Scale the entire enemy
 		Scale = Vector3.One * _currentStats.Scale;
 
-		// ✨ Load the model FIRST
-		LoadEnemyModel();
+		// ✨ IMPORTANT: DON'T load model dynamically
+		// The scene already has the correct hierarchy!
+		// Just find the existing AnimationPlayer
 
-		// ✨ THEN find AnimationPlayer from the loaded model
-		_animPlayer = FindAnimationPlayer(this);
+		_animPlayer = GetNodeOrNull<AnimationPlayer>("AnimationPlayer");
+		if (_animPlayer == null)
+		{
+			_animPlayer = FindAnimationPlayer(this);
+		}
 
 		if (_animPlayer != null)
 		{
@@ -152,55 +176,6 @@ public partial class Enemy : CharacterBody3D
 
 		_isInitialized = true;
 		SetPhysicsProcess(true);
-	}
-
-	// ✨ FIXED: Better model loading with proper error handling
-	private void LoadEnemyModel()
-	{
-		// ✨ IMPORTANT: Check if CharacterModel already exists
-		_characterModel = GetNodeOrNull<Node3D>("CharacterModel");
-		
-		if (_characterModel != null)
-		{
-			// Clear ALL old children first
-			foreach (Node child in _characterModel.GetChildren())
-			{
-				child.QueueFree();
-			}
-		}
-		else
-		{
-			// Create CharacterModel if it doesn't exist
-			_characterModel = new Node3D();
-			_characterModel.Name = "CharacterModel";
-			AddChild(_characterModel);
-		}
-
-		// ✨ Load FBX model
-		if (string.IsNullOrEmpty(_currentStats.ModelPath))
-		{
-			return;
-		}
-
-		PackedScene modelScene = GD.Load<PackedScene>(_currentStats.ModelPath);
-		
-		if (modelScene == null)
-		{
-			return;
-		}
-
-		try
-		{
-			Node3D modelInstance = modelScene.Instantiate() as Node3D;
-			if (modelInstance != null)
-			{
-				_characterModel.AddChild(modelInstance);
-			}
-		}
-		catch (System.Exception ex)
-		{
-			// Silently handle errors
-		}
 	}
 
 	public override void _PhysicsProcess(double delta)
@@ -304,6 +279,7 @@ public partial class Enemy : CharacterBody3D
 
 		float targetYaw = Mathf.Atan2(direction.X, direction.Z);
 		float currentYaw = Rotation.Y;
+
 		float newYaw = Mathf.LerpAngle(currentYaw, targetYaw, RotationSpeed * delta);
 
 		Rotation = new Vector3(Rotation.X, newYaw, Rotation.Z);
@@ -312,6 +288,7 @@ public partial class Enemy : CharacterBody3D
 	private void SetWalking(bool walking)
 	{
 		if (_isAttacking) return;
+
 		if (_isWalking == walking) return;
 		_isWalking = walking;
 
@@ -331,20 +308,6 @@ public partial class Enemy : CharacterBody3D
 
 	private string ResolveWalkAnimation(AnimationPlayer animationPlayer)
 	{
-		// ✨ Priority 1: Look for "Walk" animation
-		foreach (string libraryName in animationPlayer.GetAnimationLibraryList())
-		{
-			AnimationLibrary library = animationPlayer.GetAnimationLibrary(libraryName);
-
-			if (library.HasAnimation("Walk"))
-			{
-				Animation animation = library.GetAnimation("Walk");
-				animation.LoopMode = Animation.LoopModeEnum.Linear;
-				return string.IsNullOrEmpty(libraryName) ? "Walk" : $"{libraryName}/Walk";
-			}
-		}
-
-		// ✨ Priority 2: Look for "mixamo_com" animation
 		foreach (string libraryName in animationPlayer.GetAnimationLibraryList())
 		{
 			AnimationLibrary library = animationPlayer.GetAnimationLibrary(libraryName);
@@ -357,7 +320,6 @@ public partial class Enemy : CharacterBody3D
 			}
 		}
 
-		// ✨ Priority 3: Use any animation except T-pose
 		foreach (string libraryName in animationPlayer.GetAnimationLibraryList())
 		{
 			AnimationLibrary library = animationPlayer.GetAnimationLibrary(libraryName);
@@ -419,9 +381,42 @@ public partial class Enemy : CharacterBody3D
 		}
 	}
 
+	private void SetupDeathAnimation()
+	{
+		if (_animPlayer == null) return;
+
+		Animation deathAnimation = AnimationHelper.ExtractAnimationFromFbx(DeathFbxPath, false);
+		
+		if (deathAnimation == null)
+		{
+			return;
+		}
+
+		AnimationLibrary library = null;
+		try
+		{
+			if (_animPlayer.HasAnimationLibrary("EnemyAnims"))
+			{
+				library = _animPlayer.GetAnimationLibrary("EnemyAnims");
+			}
+		}
+		catch
+		{
+			library = null;
+		}
+
+		if (library == null)
+		{
+			library = new AnimationLibrary();
+			_animPlayer.AddAnimationLibrary("EnemyAnims", library);
+		}
+
+		library.AddAnimation("Death", deathAnimation);
+		_deathAnim = "EnemyAnims/Death";
+	}
+
 	private AnimationPlayer FindAnimationPlayer(Node node)
 	{
-		// ✨ Recursively search for AnimationPlayer from this node
 		if (node is AnimationPlayer animationPlayer)
 			return animationPlayer;
 
@@ -463,11 +458,16 @@ public partial class Enemy : CharacterBody3D
 		_healthBar.AnchorTop = 0.0f;
 		_healthBar.AnchorRight = 1.0f;
 		_healthBar.AnchorBottom = 1.0f;
+		_healthBar.OffsetLeft = 0;
+		_healthBar.OffsetTop = 0;
+		_healthBar.OffsetRight = 0;
+		_healthBar.OffsetBottom = 0;
 
 		StyleBox styleBoxBackground = new StyleBoxFlat();
 		((StyleBoxFlat)styleBoxBackground).BgColor = new Color(0.2f, 0.2f, 0.2f, 0.9f);
 		_healthBar.AddThemeStyleboxOverride("background", styleBoxBackground);
 
+		// ✨ COLOR HEALTH BAR BY TYPE
 		Color barColor = _currentStats.ColorTint;
 		StyleBox styleBoxFill = new StyleBoxFlat();
 		((StyleBoxFlat)styleBoxFill).BgColor = barColor;

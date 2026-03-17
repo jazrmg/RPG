@@ -2,20 +2,20 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dwux6f7evd2d3"
-path.s3tc="res://.godot/imported/Vampire_A_Lusth_0.png-d224d8ed34378ce0f489462dac75f945.s3tc.ctex"
+uid="uid://0aofuppi4ct0"
+path.s3tc="res://.godot/imported/Warrok_Walking_0.png-03996c59fb758667dc66862686b70f20.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
 }
 generator_parameters={
-"md5": "ca392b97734ebbcef3a8702fc3bad22b"
+"md5": "e0997483ef3521c7a2531a31e7696792"
 }
 
 [deps]
 
-source_file="res://models/enemy/Vampire_A_Lusth_0.png"
-dest_files=["res://.godot/imported/Vampire_A_Lusth_0.png-d224d8ed34378ce0f489462dac75f945.s3tc.ctex"]
+source_file="res://models/enemy/Warrok_Walking_0.png"
+dest_files=["res://.godot/imported/Warrok_Walking_0.png-03996c59fb758667dc66862686b70f20.s3tc.ctex"]
 
 [params]
 
