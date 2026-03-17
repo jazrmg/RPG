@@ -8,7 +8,7 @@ public partial class Enemy : CharacterBody3D
 	[Export] public float Deceleration = 15.0f;
 	[Export] public float Friction = 0.90f;
 	[Export] public float ChaseRange = 20.0f;
-	[Export] public float StopDistance = 1.5f;  // ✨ REDUCED: From 2.5 to 1.5 for closer combat
+	[Export] public float StopDistance = 2.5f;  // ✨ INCREASED: From 1.5 to 2.5 to prevent collision backup
 	[Export] public float RotationSpeed = 12.0f;  // ✨ SMOOTHED: From 10.0 to 12.0 for smoother turns
 	[Export] public float MaxHealth = 100.0f;
 	[Export] public float KnockbackResistance = 0.3f;
@@ -17,7 +17,6 @@ public partial class Enemy : CharacterBody3D
 	[Export] public float SpawnInvulnerabilityTime = 0.5f;
 	[Export] public float DamageToPlayer = 15.0f;
 	[Export] public float AttackCooldown = 0.8f;
-	[Export] public string RespawnScenePath = "res://scenes/Enemy_Mutant.tscn";  // ✨ NEW: Set in inspector
 
 	// ✨ PUBLIC ACCESS: Current health for auto battle AI
 	public float CurrentHealth => _currentHealth;
@@ -104,8 +103,8 @@ public partial class Enemy : CharacterBody3D
 
 		if (_isAttacking)
 		{
-			// ✨ SMOOTHED: Smoother stop when attacking
-			horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, Deceleration * 1.5f * dt);
+			// ✨ FIXED: Stop immediately when attacking (no backing up!)
+			horizontalVelocity = Vector3.Zero;
 			SetWalking(false);
 		}
 		else if (shouldChase && !toPlayer.IsZeroApprox())
@@ -488,7 +487,7 @@ public partial class Enemy : CharacterBody3D
 	private void Die()
 	{
 		SetPhysicsProcess(false);
-		RemoveFromGroup("enemy");
+		RemoveFromGroup("enemy");  // ✨ NEW: Remove from group BEFORE spawning!
 		SpawnRespawnEnemies();
 		QueueFree();
 	}
@@ -540,36 +539,44 @@ public partial class Enemy : CharacterBody3D
 		Node parent = GetParent();
 		if (parent == null) return;
 
+		// ✨ NEW: Check max enemy limit to prevent lag
 		var enemies = GetTree().GetNodesInGroup("enemy");
-		if (enemies.Count >= 8) return;
+		if (enemies.Count >= 8)  // Max 8 enemies at once
+		{
+			return;  // Don't spawn more enemies
+		}
 
-		if (string.IsNullOrEmpty(RespawnScenePath)) return;
+		string scenePath = GetSceneFilePath();
+		if (string.IsNullOrEmpty(scenePath)) return;
 
-		PackedScene enemyScene = GD.Load<PackedScene>(RespawnScenePath);
+		PackedScene enemyScene = GD.Load<PackedScene>(scenePath);
 		if (enemyScene == null) return;
 
-		// ✨ NEW: Random respawn positions instead of fixed offsets
-		for (int i = 0; i < 2; i++)
-		{
-			float randomDistance = 4.0f + GD.Randf() * 8.0f;  // 4-12 units away
-			float randomAngle = GD.Randf() * Mathf.Tau;  // 0-360 degrees
-			
-			Vector3 spawnOffset = new Vector3(
-				Mathf.Cos(randomAngle) * randomDistance,
-				0,
-				Mathf.Sin(randomAngle) * randomDistance
-			);
+		Vector3 spawnOffset1 = GlobalPosition + new Vector3(3, 0, 0);
+		Vector3 spawnOffset2 = GlobalPosition + new Vector3(-3, 0, 0);
 
-			try
-			{
-				Node spawnedNode = enemyScene.Instantiate();
-				parent.AddChild(spawnedNode);
-				spawnedNode.Set("global_position", GlobalPosition + spawnOffset);
-				spawnedNode.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
-			}
-			catch
-			{
-			}
+		try
+		{
+			Node spawnedNode1 = enemyScene.Instantiate();
+			parent.AddChild(spawnedNode1);
+			spawnedNode1.Set("global_position", spawnOffset1);
+			// ✨ FIXED: _Ready() automatically calls SetupEnemy(), so don't call it again
+			spawnedNode1.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
+		}
+		catch
+		{
+		}
+
+		try
+		{
+			Node spawnedNode2 = enemyScene.Instantiate();
+			parent.AddChild(spawnedNode2);
+			spawnedNode2.Set("global_position", spawnOffset2);
+			// ✨ FIXED: Same here - _Ready() handles initialization
+			spawnedNode2.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
+		}
+		catch
+		{
 		}
 	}
 

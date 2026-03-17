@@ -1,92 +1,65 @@
 using Godot;
 using System;
-using System.Collections.Generic;  // ✨ FIX: For Dictionary<,>
+using System.Collections.Generic;
 
-/// <summary>
-/// ✨ LEVELING SYSTEM - Standalone class for player progression
-/// Can be imported into any character class
-/// Handles: XP, levels, stat points, soft cap scaling
-/// </summary>
 public partial class LevelingSystem : Node
 {
-	// ✨ LEVEL CONSTANTS
 	private const int BASE_XP_PER_KILL = 100;
 	private const int SOFT_CAP_LEVEL = 30;
-	private const float SOFT_CAP_REDUCTION = 0.90f;  // 10% reduction per level after 30
+	private const float SOFT_CAP_REDUCTION = 0.90f;
 	private const int MAX_LEVEL = 100;
 
-	// ✨ STAT POINT VALUES - ABSOLUTELY EPIC FOR INSANE PROGRESSION!
-	private const float HEALTH_PER_POINT = 200f;        // ✨ 150 → 200 (even more!)
-	private const float DAMAGE_PER_POINT = 100f;        // ✨ Not used with exponential
-	private const float ATTACK_SPEED_PER_POINT = 0.50f; // ✨ Not used with exponential
-	private const float STAMINA_PER_POINT = 200f;       // ✨ 150 → 200 (even more!)
-	private const float DODGE_CHANCE_PER_POINT = 0.20f; // ✨ 15% → 20% per point!
-	private const float CRIT_CHANCE_PER_POINT = 0.15f;  // ✨ 12% → 15% per point!
+	private const float HEALTH_PER_POINT = 5f;
+	private const float DAMAGE_PER_POINT = 2f;
+	private const float ATTACK_SPEED_PER_POINT = 0.05f;
+	private const float CRIT_CHANCE_PER_POINT = 0.01f;
 
-	// ✨ PLAYER PROGRESSION STATE
 	public int CurrentLevel { get; private set; } = 1;
 	public float CurrentXP { get; private set; } = 0f;
 	public float XPRequiredForNextLevel { get; private set; } = BASE_XP_PER_KILL;
 	public int AvailableStatPoints { get; private set; } = 0;
 	public bool JustLeveledUp { get; private set; } = false;
 
-	// ✨ STAT ALLOCATIONS (how many points spent on each stat)
 	public int HealthPoints { get; private set; } = 0;
 	public int DamagePoints { get; private set; } = 0;
-	public int AttackSpeedPoints { get; private set; } = 0;  // ✨ Back to 0 (was 100 for testing)
-	public int StaminaPoints { get; private set; } = 0;
-	public int DodgeChancePoints { get; private set; } = 0;
+	public int AttackSpeedPoints { get; private set; } = 0;
 	public int CritChancePoints { get; private set; } = 0;
 
-	// ✨ CALLBACKS for UI updates (C# Actions instead of Godot signals)
 	public Action LevelUp { get; set; }
 	public Action<int> XPGained { get; set; }
 	public Action<string, int> StatAllocated { get; set; }
 
 	public override void _Ready()
 	{
-		// System is ready to use
 	}
 
-	/// <summary>
-	/// Add XP when enemy dies (call this from Player3D when killing enemy)
-	/// </summary>
 	public void AddXP(int xpAmount)
 	{
 		CurrentXP += xpAmount;
-		XPGained?.Invoke(xpAmount);  // ✨ Invoke Action instead of EmitSignal
+		XPGained?.Invoke(xpAmount);
 
-		// Check for level up
 		while (CurrentXP >= XPRequiredForNextLevel && CurrentLevel < MAX_LEVEL)
 		{
-			LevelUp_();  // Call internal method
+			LevelUp_();
 		}
 	}
 
-	/// <summary>
-	/// Level up! Adds stat point and restores HP/Stamina to 100%
-	/// </summary>
-	private void LevelUp_()  // ✨ Renamed to avoid conflict with Action property
+	private void LevelUp_()
 	{
 		CurrentLevel++;
 		CurrentXP -= XPRequiredForNextLevel;
 		AvailableStatPoints++;
 		JustLeveledUp = true;
 
-		// Calculate XP for next level (with soft cap after level 30)
 		CalculateXPForNextLevel();
 
-		LevelUp?.Invoke();  // ✨ Invoke Action instead of EmitSignal
+		LevelUp?.Invoke();
 	}
 
-	/// <summary>
-	/// Calculate XP required for next level (with soft cap scaling)
-	/// </summary>
 	private void CalculateXPForNextLevel()
 	{
 		float baseXP = BASE_XP_PER_KILL * CurrentLevel;
 
-		// Apply soft cap after level 30
 		if (CurrentLevel >= SOFT_CAP_LEVEL)
 		{
 			int levelsAboveCap = CurrentLevel - SOFT_CAP_LEVEL;
@@ -97,9 +70,6 @@ public partial class LevelingSystem : Node
 		XPRequiredForNextLevel = baseXP;
 	}
 
-	/// <summary>
-	/// Allocate a stat point to specific stat
-	/// </summary>
 	public void AllocateStatPoint(string statName)
 	{
 		if (AvailableStatPoints <= 0)
@@ -118,12 +88,6 @@ public partial class LevelingSystem : Node
 			case "attackspeed":
 				AttackSpeedPoints++;
 				break;
-			case "stamina":
-				StaminaPoints++;
-				break;
-			case "dodge":
-				DodgeChancePoints++;
-				break;
 			case "crit":
 				CritChancePoints++;
 				break;
@@ -132,15 +96,12 @@ public partial class LevelingSystem : Node
 		}
 
 		AvailableStatPoints--;
-		JustLeveledUp = false;  // User has spent the point, hide UI
+		JustLeveledUp = false;
 
 		int newValue = GetStatValue(statName);
-		StatAllocated?.Invoke(statName, newValue);  // ✨ Invoke Action instead of EmitSignal
+		StatAllocated?.Invoke(statName, newValue);
 	}
 
-	/// <summary>
-	/// Get current value of allocated stat
-	/// </summary>
 	private int GetStatValue(string statName)
 	{
 		return statName.ToLower() switch
@@ -148,78 +109,31 @@ public partial class LevelingSystem : Node
 			"health" => HealthPoints,
 			"damage" => DamagePoints,
 			"attackspeed" => AttackSpeedPoints,
-			"stamina" => StaminaPoints,
-			"dodge" => DodgeChancePoints,
 			"crit" => CritChancePoints,
 			_ => 0
 		};
 	}
 
-	/// <summary>
-	/// Get stat multiplier for damage (used by Player3D)
-	/// </summary>
 	public float GetDamageMultiplier()
 	{
-		// Base damage + points spent
-		return 1.0f + (DamagePoints * DAMAGE_PER_POINT) / 15f;  // Normalize to reasonable scale
+		return 1.0f + (DamagePoints * DAMAGE_PER_POINT) / 15f;
 	}
 
-	/// <summary>
-	/// Get health bonus
-	/// </summary>
 	public float GetHealthBonus()
 	{
 		return HealthPoints * HEALTH_PER_POINT;
 	}
 
-	/// <summary>
-	/// Get max stamina bonus
-	/// </summary>
-	public float GetStaminaBonus()
-	{
-		return StaminaPoints * STAMINA_PER_POINT;
-	}
-
-	/// <summary>
-	/// Get attack speed multiplier (cooldown reduction) - ULTRA AGGRESSIVE!
-	/// </summary>
 	public float GetAttackSpeedMultiplier()
 	{
-		if (AttackSpeedPoints <= 0)
-			return 1.0f;
-		
-		// ✨ ULTRA FAST: 0.90^points (even more aggressive!)
-		// 1 point = ×0.90 (10% faster)
-		// 5 points = ×0.59 (41% faster)
-		// 10 points = ×0.35 (65% faster)
-		// 15 points = ×0.21 (79% faster)
-		// 20 points = ×0.12 (88% faster)
-		// 27 points = ×0.05 (95% FASTER!!!)
-		float multiplier = Mathf.Pow(0.90f, AttackSpeedPoints);
-		
-		// Never go below 0.01 (near-instant attacks)
-		return Mathf.Max(multiplier, 0.01f);
+		return 1.0f - (AttackSpeedPoints * ATTACK_SPEED_PER_POINT);
 	}
 
-	/// <summary>
-	/// Get dodge chance bonus
-	/// </summary>
-	public float GetDodgeChanceBonus()
-	{
-		return DodgeChancePoints * DODGE_CHANCE_PER_POINT;
-	}
-
-	/// <summary>
-	/// Get crit chance bonus
-	/// </summary>
 	public float GetCritChanceBonus()
 	{
 		return CritChancePoints * CRIT_CHANCE_PER_POINT;
 	}
 
-	/// <summary>
-	/// Save level data to JSON
-	/// </summary>
 	public Dictionary<string, Variant> SaveData()
 	{
 		return new Dictionary<string, Variant>
@@ -229,15 +143,10 @@ public partial class LevelingSystem : Node
 			{ "health_points", HealthPoints },
 			{ "damage_points", DamagePoints },
 			{ "attack_speed_points", AttackSpeedPoints },
-			{ "stamina_points", StaminaPoints },
-			{ "dodge_chance_points", DodgeChancePoints },
 			{ "crit_chance_points", CritChancePoints }
 		};
 	}
 
-	/// <summary>
-	/// Load level data from JSON
-	/// </summary>
 	public void LoadData(Dictionary<string, Variant> data)
 	{
 		if (data == null) return;
@@ -247,18 +156,8 @@ public partial class LevelingSystem : Node
 		HealthPoints = (int)(data.ContainsKey("health_points") ? data["health_points"] : 0);
 		DamagePoints = (int)(data.ContainsKey("damage_points") ? data["damage_points"] : 0);
 		AttackSpeedPoints = (int)(data.ContainsKey("attack_speed_points") ? data["attack_speed_points"] : 0);
-		StaminaPoints = (int)(data.ContainsKey("stamina_points") ? data["stamina_points"] : 0);
-		DodgeChancePoints = (int)(data.ContainsKey("dodge_chance_points") ? data["dodge_chance_points"] : 0);
 		CritChancePoints = (int)(data.ContainsKey("crit_chance_points") ? data["crit_chance_points"] : 0);
 
 		CalculateXPForNextLevel();
-	}
-
-	/// <summary>
-	/// Debug: Print current stats
-	/// </summary>
-	public void PrintStats()
-	{
-		// Stats printing removed
 	}
 }

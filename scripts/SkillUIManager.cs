@@ -3,22 +3,22 @@ using System;
 
 public partial class SkillUIManager : Control
 {
-	private Label _healthLabel;
-	private ProgressBar _healthBar;
+	private Label _healthLabel, _staminaLabel;
+	private ProgressBar _healthBar, _staminaBar;
+	private Button _heavyBtn, _specialBtn;
+	private Control _heavyOverlay, _specialOverlay;
+	private Label _heavyCooldown, _specialCooldown;
 	private Player3D _player;
 
-	// ✨ NEW: Level display
 	private Label _levelLabel;
 	private ProgressBar _xpBar;
 	private Label _xpLabel;
 
-	// ✨ NEW: Stats UI reference
 	private StatAllocationUI _statsUI;
 
 	private readonly Color[] _skillColors = new[] {
-		new Color(0.1f, 0.9f, 0.1f),      // Green
-		new Color(0.95f, 0.75f, 0.0f),    // Yellow
-		new Color(0.95f, 0.1f, 0.1f)      // Red
+		new Color(0.95f, 0.75f, 0.0f),    // Yellow - Heavy
+		new Color(0.95f, 0.1f, 0.1f)      // Red - Special
 	};
 
 	public override void _Ready()
@@ -36,13 +36,9 @@ public partial class SkillUIManager : Control
 
 	private void CreateUI()
 	{
-		// Health Bar - Top Left
 		CreateHealthBar();
-
-		// ✨ NEW: Level Display - Top Center
+		CreateStaminaBar();
 		CreateLevelDisplay();
-		
-		// Skill Buttons - Right Side
 		CreateSkillButtons();
 	}
 
@@ -91,9 +87,53 @@ public partial class SkillUIManager : Control
 		AddChild(container);
 	}
 
+	private void CreateStaminaBar()
+	{
+		var container = new PanelContainer();
+		container.AnchorLeft = 0.75f;
+		container.AnchorTop = 0.0f;
+		container.AnchorRight = 1.0f;
+		container.AnchorBottom = 0.15f;
+		container.OffsetLeft = 10;
+		container.OffsetTop = 10;
+		container.OffsetRight = -10;
+		container.OffsetBottom = -10;
+
+		var bgStyle = new StyleBoxFlat { BgColor = new Color(0.02f, 0.02f, 0.02f, 0.9f) };
+		container.AddThemeStyleboxOverride("panel", bgStyle);
+
+		var vbox = new VBoxContainer();
+		vbox.AddThemeConstantOverride("separation", 4);
+		container.AddChild(vbox);
+
+		var titleLabel = new Label { Text = "⚡ STAMINA" };
+		titleLabel.AddThemeColorOverride("font_color", new Color(1, 0.9f, 0.2f, 1));
+		titleLabel.AddThemeFontSizeOverride("font_size", 14);
+		vbox.AddChild(titleLabel);
+
+		_staminaLabel = new Label { Text = "100 / 100" };
+		_staminaLabel.AddThemeColorOverride("font_color", Colors.White);
+		_staminaLabel.AddThemeFontSizeOverride("font_size", 12);
+		vbox.AddChild(_staminaLabel);
+
+		_staminaBar = new ProgressBar();
+		_staminaBar.MinValue = 0;
+		_staminaBar.MaxValue = 100;
+		_staminaBar.Value = 100;
+		_staminaBar.CustomMinimumSize = new Vector2(200, 20);
+
+		var barBg = new StyleBoxFlat { BgColor = new Color(0.1f, 0.1f, 0.1f, 0.9f) };
+		_staminaBar.AddThemeStyleboxOverride("background", barBg);
+
+		var barFill = new StyleBoxFlat { BgColor = new Color(1, 0.9f, 0.2f, 1) };
+		_staminaBar.AddThemeStyleboxOverride("fill", barFill);
+
+		vbox.AddChild(_staminaBar);
+		AddChild(container);
+	}
+
 	private void CreateLevelDisplay()
 	{
-		// ✨ Level panel - Top center
 		var container = new PanelContainer();
 		container.AnchorLeft = 0.35f;
 		container.AnchorTop = 0.0f;
@@ -152,7 +192,7 @@ public partial class SkillUIManager : Control
 		vbox.OffsetBottom = -10;
 		vbox.AddThemeConstantOverride("separation", 8);
 
-		// ✨ AUTO BATTLE BUTTON
+		// AUTO BATTLE BUTTON
 		var autoBattleBtn = new Button { Text = "⚔️ AUTO" };
 		autoBattleBtn.CustomMinimumSize = new Vector2(70, 40);
 		autoBattleBtn.AddThemeFontSizeOverride("font_size", 16);
@@ -171,17 +211,17 @@ public partial class SkillUIManager : Control
 		};
 		vbox.AddChild(autoBattleBtn);
 
+		// ONLY 2 SKILL BUTTONS (Heavy and Special, NOT Light)
 		var skills = new[] {
-			("1", _skillColors[0], (Action)(() => SelectSkill(1))),
-			("2", _skillColors[1], (Action)(() => SelectSkill(2))),
-			("3", _skillColors[2], (Action)(() => SelectSkill(3)))
+			("2", _skillColors[0], (Action)(() => SelectSkill(2))),  // Heavy
+			("3", _skillColors[1], (Action)(() => SelectSkill(3)))   // Special
 		};
 
-		Button[] buttons = new Button[3];
-		Control[] overlays = new Control[3];
-		Label[] cooldownLabels = new Label[3];
+		Button[] buttons = new Button[2];
+		Control[] overlays = new Control[2];
+		Label[] cooldownLabels = new Label[2];
 
-		for (int i = 0; i < 3; i++)
+		for (int i = 0; i < 2; i++)
 		{
 			var btnContainer = new PanelContainer();
 			btnContainer.CustomMinimumSize = new Vector2(70, 70);
@@ -232,18 +272,14 @@ public partial class SkillUIManager : Control
 			cooldownLabels[i] = cooldownLabel;
 		}
 
-		// Update references
-		var lightBtn = buttons[0];
-		var heavyBtn = buttons[1];
-		var specialBtn = buttons[2];
-		var lightOverlay = overlays[0];
-		var heavyOverlay = overlays[1];
-		var specialOverlay = overlays[2];
-		var lightCooldown = cooldownLabels[0];
-		var heavyCooldown = cooldownLabels[1];
-		var specialCooldown = cooldownLabels[2];
+		_heavyBtn = buttons[0];
+		_specialBtn = buttons[1];
+		_heavyOverlay = overlays[0];
+		_specialOverlay = overlays[1];
+		_heavyCooldown = cooldownLabels[0];
+		_specialCooldown = cooldownLabels[1];
 
-		// ✨ NEW: STATS BUTTON
+		// STATS BUTTON
 		var statsBtn = new Button { Text = "📊 STATS" };
 		statsBtn.CustomMinimumSize = new Vector2(70, 40);
 		statsBtn.AddThemeFontSizeOverride("font_size", 14);
@@ -275,7 +311,6 @@ public partial class SkillUIManager : Control
 
 		UpdateBars();
 		UpdateCooldowns();
-		UpdateSelection();
 		UpdateLevelDisplay();
 		HandleInput();
 	}
@@ -299,17 +334,23 @@ public partial class SkillUIManager : Control
 
 	private void UpdateCooldowns()
 	{
-		// Simplified - only showing skill cooldowns, no stamina
+		UpdateCooldown(_heavyOverlay, _heavyCooldown, _player._heavyAttackCooldownTimer);
+		UpdateCooldown(_specialOverlay, _specialCooldown, _player._specialAttackCooldownTimer);
 	}
 
-	private void UpdateSelection()
+	private void UpdateCooldown(Control overlay, Label label, float timer)
 	{
-		// Selection logic removed - simplified
+		overlay.Visible = timer > 0;
+		if (timer > 0)
+		{
+			label.Text = $"{timer:F1}s";
+			label.AddThemeFontSizeOverride("font_size", 22);
+			label.AddThemeColorOverride("font_color", new Color(1, 1, 0, 1));
+		}
 	}
 
 	private void HandleInput()
 	{
-		if (Input.IsKeyPressed(Key.Key1)) SelectSkill(1);
 		if (Input.IsKeyPressed(Key.Key2)) SelectSkill(2);
 		if (Input.IsKeyPressed(Key.Key3)) SelectSkill(3);
 	}
@@ -318,7 +359,6 @@ public partial class SkillUIManager : Control
 	{
 		_player._currentAttackMode = skillNum switch
 		{
-			1 => Player3D.AttackMode.Light,
 			2 => Player3D.AttackMode.Heavy,
 			3 => Player3D.AttackMode.Special,
 			_ => Player3D.AttackMode.None

@@ -14,23 +14,22 @@ public partial class Player3D : CharacterBody3D
 	[Export] public float CoyoteTime = 0.16f;
 	[Export] public float JumpBufferTime = 0.16f;
 
-	// COMBAT - LIGHT ATTACK
+	// COMBAT - LIGHT ATTACK (NOT A SKILL - NO COOLDOWN)
 	[Export] public float LightSlashDamage = 15.0f;
 	[Export] public float LightSlashKnockback = 5.0f;
-	[Export] public float LightAttackCooldown = 0.5f;
 
-	// COMBAT - HEAVY ATTACK
+	// COMBAT - HEAVY ATTACK (SKILL #1 - HAS COOLDOWN)
 	[Export] public float HeavySlashDamage = 35.0f;
 	[Export] public float HeavySlashKnockback = 15.0f;
 	[Export] public float HeavyAttackCooldown = 1.2f;
 
-	// COMBAT - SPECIAL ATTACK
+	// COMBAT - SPECIAL ATTACK (SKILL #2 - HAS COOLDOWN)
 	[Export] public float SpecialDamage = 50.0f;
 	[Export] public float SpecialKnockback = 20.0f;
 	[Export] public float SpecialCooldown = 2.0f;
 
 	// COMBAT - GENERAL
-	[Export] public float CriticalChance = 0.25f;
+	[Export] public float BaseCriticalChance = 0.25f;
 	[Export] public float CriticalMultiplier = 1.5f;
 	[Export] public float InvincibilityDuration = 0.3f;
 	[Export] public float AttackModeWindowTime = 3.0f;
@@ -41,7 +40,7 @@ public partial class Player3D : CharacterBody3D
 	[Export] public float DodgeRollCooldown = 0.75f;
 
 	// HEALTH
-	[Export] public float MaxPlayerHealth = 100.0f;
+	[Export] public float BaseMaxPlayerHealth = 100.0f;
 
 	// PLAYER STATE
 	public float _playerHealth = 100.0f;
@@ -67,15 +66,16 @@ public partial class Player3D : CharacterBody3D
 	public LevelingSystem LevelingSystem { get; private set; }
 	public StatAllocationUI StatsUI { get; private set; }
 
+	// ✨ NEW: Property for max health that includes stat bonuses
+	public float MaxPlayerHealth => BaseMaxPlayerHealth + (LevelingSystem != null ? LevelingSystem.GetHealthBonus() : 0);
+
 	private Dictionary<string, string> _animationCache = new Dictionary<string, string>();
-	private string _dodgeSlideAnim = "";
 	private bool _isSwordEquipped = false;
 	private bool _isSitting = false;
 	private bool _isAttacking = false;
 	private bool _isDodgeRolling = false;
 	private bool _isGameOver = false;
 	
-	public float _lightAttackCooldownTimer = 0.0f;
 	public float _heavyAttackCooldownTimer = 0.0f;
 	private float _dodgeRollCooldownTimer = 0.0f;
 	public float _specialAttackCooldownTimer = 0.0f;
@@ -91,6 +91,7 @@ public partial class Player3D : CharacterBody3D
 	}
 	public AttackMode _currentAttackMode = AttackMode.None;
 	public float _attackModeTimer = 0.0f;
+	private AttackMode _lastPerformedAttack = AttackMode.Light;
 
 	public bool _isAutoBattle = false;
 	private float _autoAttackTimer = 0.0f;
@@ -151,6 +152,9 @@ public partial class Player3D : CharacterBody3D
 		if (_swordRoot != null)
 			_swordRoot.Visible = false;
 
+		// ✨ FIXED: Set initial health with stat bonus
+		_playerHealth = MaxPlayerHealth;
+
 		InitializeAnimations();
 		PlayAnimation("Idle");
 	}
@@ -185,7 +189,6 @@ public partial class Player3D : CharacterBody3D
 		float dt = (float)delta;
 
 		_invincibilityTimer = Mathf.Max(0, _invincibilityTimer - dt);
-		_lightAttackCooldownTimer = Mathf.Max(0, _lightAttackCooldownTimer - dt);
 		_heavyAttackCooldownTimer = Mathf.Max(0, _heavyAttackCooldownTimer - dt);
 		_dodgeRollCooldownTimer = Mathf.Max(0, _dodgeRollCooldownTimer - dt);
 		_specialAttackCooldownTimer = Mathf.Max(0, _specialAttackCooldownTimer - dt);
@@ -216,7 +219,7 @@ public partial class Player3D : CharacterBody3D
 		bool isRunning = inputDir != Vector2.Zero && Input.IsKeyPressed(Key.Shift);
 		Vector3 moveDirection = _isDodgeRolling ? _dodgeRollDirection : GetCameraRelativeDirection(inputDir);
 
-		if (Input.IsActionJustPressed("ui_accept") && !_isSitting && !_isAttacking && IsOnFloor())
+		if (Input.IsActionJustPressed("ui_accept") && !_isSitting && !_isAttacking && !_isAutoBattle && IsOnFloor())
 			_jumpBufferCounter = JumpBufferTime;
 
 		bool isGrounded = IsOnFloor();
@@ -309,11 +312,6 @@ public partial class Player3D : CharacterBody3D
 		if (dirToEnemyNorm != Vector3.Zero)
 		{
 			RotateTowardDirection(dirToEnemyNorm, delta * 1.2f);
-		}
-
-		if (enemyClosing && IsOnFloor())
-		{
-			PredictiveDodging(distanceToEnemy, healthPercent, braveryLevel, delta);
 		}
 
 		if (distanceToEnemy <= 3.5f)
@@ -438,57 +436,6 @@ public partial class Player3D : CharacterBody3D
 			horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, RunAcceleration * 2.0f * delta);
 			_velocity.X = horizontalVelocity.X;
 			_velocity.Z = horizontalVelocity.Z;
-		}
-	}
-
-	private void PredictiveDodging(float distanceToEnemy, float healthPercent, float braveryLevel, float delta)
-	{
-		if (_lastDamageTime > 0 && IsOnFloor())
-		{
-			if (GD.Randf() < 0.90f)
-			{
-				_jumpBufferCounter = JumpBufferTime;
-				return;
-			}
-		}
-
-		if (distanceToEnemy < 2.0f && IsOnFloor())
-		{
-			if (GD.Randf() < 0.80f)
-			{
-				_jumpBufferCounter = JumpBufferTime;
-				return;
-			}
-		}
-
-		float baseDodgeChance = 0.15f;
-		
-		if (healthPercent < 0.75f) baseDodgeChance = 0.20f;
-		if (healthPercent < 0.60f) baseDodgeChance = 0.25f;
-		if (healthPercent < 0.50f) baseDodgeChance = 0.30f;
-		if (healthPercent < 0.35f) baseDodgeChance = 0.40f;
-		if (healthPercent < 0.20f) baseDodgeChance = 0.50f;
-		if (healthPercent < 0.10f) baseDodgeChance = 0.60f;
-
-		float distanceMultiplier = 1.0f;
-		if (distanceToEnemy < 3.5f) distanceMultiplier = 2.0f;
-		if (distanceToEnemy < 2.5f) distanceMultiplier = 3.0f;
-		if (distanceToEnemy < 1.8f) distanceMultiplier = 4.0f;
-
-		float braveryModifier = 1.0f - (braveryLevel * 0.1f);
-		braveryModifier = Mathf.Max(braveryModifier, 0.7f);
-
-		float finalDodgeChance = baseDodgeChance * distanceMultiplier * braveryModifier;
-		finalDodgeChance = Mathf.Min(finalDodgeChance, 0.85f);
-
-		if (distanceToEnemy < 3.0f)
-		{
-			finalDodgeChance = Mathf.Max(finalDodgeChance, 0.25f);
-		}
-
-		if (GD.Randf() < finalDodgeChance && IsOnFloor())
-		{
-			_jumpBufferCounter = JumpBufferTime;
 		}
 	}
 
@@ -799,48 +746,38 @@ public partial class Player3D : CharacterBody3D
 			return;
 
 		if (!_isSwordEquipped)
-		{
 			return;
-		}
 
 		switch (_currentAttackMode)
 		{
 			case AttackMode.Light:
 				if (CanAttack()) 
-				{
 					PerformLightAttack();
-				}
 				break;
 			case AttackMode.Heavy:
 				if (CanHeavyAttack()) 
-				{
 					PerformHeavyAttack();
-				}
 				break;
 			case AttackMode.Special:
 				if (CanSpecialAttack()) 
-				{
 					PerformSpecialAttack();
-				}
 				break;
 			case AttackMode.None:
 				if (CanAttack()) 
-				{
 					PerformLightAttack();
-				}
 				break;
 		}
 	}
 
-	private bool CanAttack() => !_isSitting && _lightAttackCooldownTimer <= 0 && IsOnFloor() && _isSwordEquipped;
+	private bool CanAttack() => !_isSitting && IsOnFloor() && _isSwordEquipped;
 	private bool CanHeavyAttack() => !_isSitting && _heavyAttackCooldownTimer <= 0 && IsOnFloor() && _isSwordEquipped;
 	private bool CanSpecialAttack() => !_isSitting && _specialAttackCooldownTimer <= 0 && IsOnFloor() && _isSwordEquipped;
 
 	private void PerformLightAttack()
 	{
 		_isAttacking = true;
+		_lastPerformedAttack = AttackMode.Light;
 		_hitEnemiesThisAttack.Clear();
-		_lightAttackCooldownTimer = LightAttackCooldown;
 		_currentAttackMode = AttackMode.None;
 
 		if (_comboTimer > 0)
@@ -859,8 +796,13 @@ public partial class Player3D : CharacterBody3D
 	private void PerformHeavyAttack()
 	{
 		_isAttacking = true;
+		_lastPerformedAttack = AttackMode.Heavy;
 		_hitEnemiesThisAttack.Clear();
-		_heavyAttackCooldownTimer = HeavyAttackCooldown;
+		
+		// ✨ FIXED: Apply attack speed multiplier to cooldown
+		float speedMult = LevelingSystem != null ? LevelingSystem.GetAttackSpeedMultiplier() : 1.0f;
+		_heavyAttackCooldownTimer = HeavyAttackCooldown * speedMult;
+		
 		_currentAttackMode = AttackMode.None;
 
 		PlayAnimation("SwordSlash");
@@ -869,8 +811,13 @@ public partial class Player3D : CharacterBody3D
 	private void PerformSpecialAttack()
 	{
 		_isAttacking = true;
+		_lastPerformedAttack = AttackMode.Special;
 		_hitEnemiesThisAttack.Clear();
-		_specialAttackCooldownTimer = SpecialCooldown;
+		
+		// ✨ FIXED: Apply attack speed multiplier to cooldown
+		float speedMult = LevelingSystem != null ? LevelingSystem.GetAttackSpeedMultiplier() : 1.0f;
+		_specialAttackCooldownTimer = SpecialCooldown * speedMult;
+		
 		_currentAttackMode = AttackMode.None;
 
 		PlayAnimation("SwordSlash");
@@ -894,11 +841,10 @@ public partial class Player3D : CharacterBody3D
 				knockbackDir.Y = 0;
 				knockbackDir = knockbackDir.Normalized();
 
-				float damage = DetermineAttackDamage(out bool isCritical);
-				float knockback = DetermineAttackKnockback();
+				float damage = DetermineAttackDamage(_lastPerformedAttack, out bool isCritical);
+				float knockback = DetermineAttackKnockback(_lastPerformedAttack);
 
 				ShakeScreen(0.15f, 0.2f);
-				
 				enemy.FlashHit();
 				
 				float enemyHealthBeforeDamage = enemy.CurrentHealth;
@@ -913,27 +859,50 @@ public partial class Player3D : CharacterBody3D
 		}
 	}
 
-	private float DetermineAttackDamage(out bool isCritical)
+	private float DetermineAttackDamage(AttackMode attackMode, out bool isCritical)
 	{
-		float baseDamage = LightSlashDamage;
+		float baseDamage = attackMode switch
+		{
+			AttackMode.Light => LightSlashDamage,
+			AttackMode.Heavy => HeavySlashDamage,
+			AttackMode.Special => SpecialDamage,
+			_ => LightSlashDamage
+		};
+
+		// ✨ FIXED: Apply damage multiplier from stats!
+		if (LevelingSystem != null)
+		{
+			float damageMultiplier = LevelingSystem.GetDamageMultiplier();
+			baseDamage *= damageMultiplier;
+		}
 
 		if (_comboCount >= 2)
-		{
 			baseDamage *= (1.0f + (_comboCount * 0.5f));
-		}
 
-		isCritical = GD.Randf() < CriticalChance;
-		if (isCritical)
+		// ✨ FIXED: Apply crit chance bonus from stats!
+		float critChance = BaseCriticalChance;
+		if (LevelingSystem != null)
 		{
-			baseDamage *= CriticalMultiplier;
+			critChance += LevelingSystem.GetCritChanceBonus();
 		}
+		critChance = Mathf.Clamp(critChance, 0, 1.0f);  // Cap at 100%
+
+		isCritical = GD.Randf() < critChance;
+		if (isCritical)
+			baseDamage *= CriticalMultiplier;
 
 		return baseDamage;
 	}
 
-	private float DetermineAttackKnockback()
+	private float DetermineAttackKnockback(AttackMode attackMode)
 	{
-		return LightSlashKnockback;
+		return attackMode switch
+		{
+			AttackMode.Light => LightSlashKnockback,
+			AttackMode.Heavy => HeavySlashKnockback,
+			AttackMode.Special => SpecialKnockback,
+			_ => LightSlashKnockback
+		};
 	}
 
 	private void UpdateAnimationState(Vector3 moveDirection, bool isRunning, bool jumped, bool landed)
@@ -956,18 +925,9 @@ public partial class Player3D : CharacterBody3D
 		if (_animPlayer.CurrentAnimation != path)
 		{
 			_animPlayer.Play(path);
-			if (name.Contains("Attack") || name.Contains("Slash"))
-			{
-				_animPlayer.SpeedScale = 1.15f;
-			}
-			else
-			{
-				_animPlayer.SpeedScale = 1.0f;
-			}
+			_animPlayer.SpeedScale = name.Contains("Slash") ? 1.15f : 1.0f;
 		}
 	}
-
-	private bool IsPlayerAlive() => _playerHealth > 0.0f;
 
 	private void GameOver()
 	{
@@ -1021,8 +981,8 @@ public partial class Player3D : CharacterBody3D
 
 	private void OnPlayerLevelUp()
 	{
+		// ✨ FIXED: Restore health including stat bonus
 		_playerHealth = MaxPlayerHealth;
-
 		if (_playerHealthBar != null) _playerHealthBar.Value = _playerHealth;
 		if (_playerHealthLabel != null) _playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {MaxPlayerHealth:F0}";
 	}
@@ -1107,9 +1067,7 @@ public partial class Player3D : CharacterBody3D
 		
 		GetTree().CreateTimer(2.0f).Timeout += () => {
 			if (label != null && IsInstanceValid(label))
-			{
 				label.QueueFree();
-			}
 		};
 	}
 }
