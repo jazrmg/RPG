@@ -1,10 +1,29 @@
-[gd_scene format=3 uid="uid://dmv17eo27xm0"]
+[gd_scene format=3 uid="uid://b3gyylurrf6ou"]
 
-[ext_resource type="PackedScene" uid="uid://ckgn73uvytq5a" path="res://models/enemy/MonsterWalk.fbx" id="1_xq57t"]
+[ext_resource type="Script" uid="uid://bajthgk0kqoey" path="res://scripts/Enemy.cs" id="1_qi70y"]
+[ext_resource type="PackedScene" uid="uid://ckgn73uvytq5a" path="res://models/enemy/MonsterWalk.fbx" id="2_wf78a"]
 
-[node name="MonsterWalk" unique_id=596447246 instance=ExtResource("1_xq57t")]
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_2vx13"]
+height = 1.934082
 
-[node name="Skeleton3D" parent="." index="0" unique_id=1255625730]
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_8dsi4"]
+radius = 0.92041016
+height = 2.1535645
+
+[node name="Enemy_Monster" type="CharacterBody3D" unique_id=1932761003]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 0)
+script = ExtResource("1_qi70y")
+RespawnScenePath = "res://enemy_monster.tscn"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=4953968]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.009101391, 1.0007324, 0)
+shape = SubResource("CapsuleShape3D_2vx13")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="." unique_id=1505272448]
+
+[node name="MonsterModel" parent="." unique_id=596447246 instance=ExtResource("2_wf78a")]
+
+[node name="Skeleton3D" parent="MonsterModel" index="0" unique_id=1255625730]
 bones/0/position = Vector3(0.0004387519, 0.78210664, -0.0022001788)
 bones/0/rotation = Quaternion(0.04044806, 0.28090218, 0.036411803, 0.9581921)
 bones/1/rotation = Quaternion(0.0750789, 0.008513419, 0.024148073, 0.9968488)
@@ -36,3 +55,11 @@ bones/32/rotation = Quaternion(-0.13286489, 0.3939506, 0.8699063, 0.2653544)
 bones/33/rotation = Quaternion(-0.36116105, -0.07508243, -0.0036136017, 0.9294688)
 bones/34/rotation = Quaternion(0.34740844, 0.070464194, 0.17567173, 0.91841257)
 bones/35/rotation = Quaternion(0.3871079, 3.439377e-08, 6.1476595e-07, 0.92203444)
+
+[node name="HitBox" type="Area3D" parent="." unique_id=1495842047]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HitBox" unique_id=869653857]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.76444626, 0)
+shape = SubResource("CapsuleShape3D_8dsi4")
+
+[editable path="MonsterModel"]

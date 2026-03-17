@@ -3,42 +3,23 @@ using System.Collections.Generic;
 
 public partial class Enemy : CharacterBody3D
 {
-	public enum EnemyType
-	{
-		Mutant,
-		Warrok
-	}
-
-	[Export] public EnemyType EnemyTypeToSpawn = EnemyType.Mutant;
-
-	private Dictionary<EnemyType, EnemyStats> _typeStats = new();
-
-	public struct EnemyStats
-	{
-		public float Health;
-		public float Damage;
-		public float Speed;
-		public float AttackSpeed;
-		public float Scale;
-		public Color ColorTint;
-		public string TypeName;
-	}
-
 	[Export] public float Speed = 2.5f;
-	[Export] public float Acceleration = 25.0f;
+	[Export] public float Acceleration = 25.0f;  // ✨ INCREASED: From 18 to 25 for snappier response
 	[Export] public float Deceleration = 15.0f;
 	[Export] public float Friction = 0.90f;
 	[Export] public float ChaseRange = 20.0f;
-	[Export] public float StopDistance = 1.5f;
-	[Export] public float RotationSpeed = 12.0f;
+	[Export] public float StopDistance = 1.5f;  // ✨ REDUCED: From 2.5 to 1.5 for closer combat
+	[Export] public float RotationSpeed = 12.0f;  // ✨ SMOOTHED: From 10.0 to 12.0 for smoother turns
 	[Export] public float MaxHealth = 100.0f;
 	[Export] public float KnockbackResistance = 0.3f;
-	[Export] public float KnockbackDamping = 0.80f;
+	[Export] public float KnockbackDamping = 0.80f;  // ✨ IMPROVED: From 0.85 to 0.80 for smoother recovery
 	[Export] public float HealthBarHeightOffset = 2.5f;
 	[Export] public float SpawnInvulnerabilityTime = 0.5f;
 	[Export] public float DamageToPlayer = 15.0f;
 	[Export] public float AttackCooldown = 0.8f;
+	[Export] public string RespawnScenePath = "res://scenes/Enemy_Mutant.tscn";  // ✨ NEW: Set in inspector
 
+	// ✨ PUBLIC ACCESS: Current health for auto battle AI
 	public float CurrentHealth => _currentHealth;
 
 	private const string PlayerGroup = "player";
@@ -67,58 +48,15 @@ public partial class Enemy : CharacterBody3D
 	private bool _isInitialized = false;
 	private float _attackCooldownTimer = 0.0f;
 
-	private EnemyStats _currentStats;
-
-	private float _currentAnimSpeedScale = 1.0f;
-	private float _targetAnimSpeedScale = 1.0f;
-	private const float ANIMATION_SPEED_LERP = 10.0f;
-
-	private float _targetRotationY = 0.0f;
-
 	public override void _Ready()
 	{
 		AddToGroup("enemy");
-		InitializeTypeStats();
 		SetupEnemy();
-	}
-
-	private void InitializeTypeStats()
-	{
-		_typeStats[EnemyType.Mutant] = new EnemyStats
-		{
-			Health = 120f,
-			Damage = 22f,
-			Speed = 2.5f,
-			AttackSpeed = 1.0f,
-			Scale = 1.0f,
-			ColorTint = new Color(0.9f, 0.6f, 0.2f, 1),
-			TypeName = "Mutant"
-		};
-
-		_typeStats[EnemyType.Warrok] = new EnemyStats
-		{
-			Health = 70f,
-			Damage = 25f,
-			Speed = 4.0f,
-			AttackSpeed = 1.3f,
-			Scale = 0.9f,
-			ColorTint = new Color(0.2f, 0.8f, 1.0f, 1),
-			TypeName = "Warrok"
-		};
 	}
 
 	private void SetupEnemy()
 	{
 		if (_isInitialized) return;
-
-		_currentStats = _typeStats[EnemyTypeToSpawn];
-
-		MaxHealth = _currentStats.Health;
-		DamageToPlayer = _currentStats.Damage;
-		Speed = _currentStats.Speed;
-		AttackCooldown = _currentStats.AttackSpeed;
-
-		Scale = Vector3.One * _currentStats.Scale;
 
 		_animPlayer = GetNodeOrNull<AnimationPlayer>("AnimationPlayer");
 		if (_animPlayer == null)
@@ -141,7 +79,6 @@ public partial class Enemy : CharacterBody3D
 
 		ResolvePlayer();
 
-		_targetRotationY = Rotation.Y;
 		_isInitialized = true;
 		SetPhysicsProcess(true);
 	}
@@ -161,13 +98,14 @@ public partial class Enemy : CharacterBody3D
 		toPlayer.Y = 0.0f;
 
 		float distance = toPlayer.Length();
-		bool shouldChase = (distance <= ChaseRange) && (distance > (StopDistance + 0.3f));
+		bool shouldChase = distance <= ChaseRange && distance > StopDistance;
 
 		Vector3 horizontalVelocity = new Vector3(_velocity.X, 0, _velocity.Z);
 
 		if (_isAttacking)
 		{
-			horizontalVelocity = Vector3.Zero;
+			// ✨ SMOOTHED: Smoother stop when attacking
+			horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, Deceleration * 1.5f * dt);
 			SetWalking(false);
 		}
 		else if (shouldChase && !toPlayer.IsZeroApprox())
@@ -175,22 +113,23 @@ public partial class Enemy : CharacterBody3D
 			Vector3 direction = toPlayer.Normalized();
 			Vector3 desiredVelocity = direction * Speed;
 
-			float accelFactor = EaseOutQuad(Mathf.Min(1.0f, Acceleration * 0.85f * dt));
-			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, accelFactor);
+			// ✨ SMOOTHED: Better acceleration lerp (0.9x multiplier for smoother feel)
+			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, Acceleration * 0.9f * dt);
 
-			RotateTowardDirectionSmoothed(direction, dt);
+			RotateTowardDirection(direction, dt);
 			SetWalking(true);
 		}
 		else
 		{
 			if (IsOnFloor())
 			{
+				// ✨ SMOOTHED: Better friction (0.90 -> 0.92 for less abrupt stops)
 				horizontalVelocity *= 0.92f;
 			}
 			else
 			{
-				float airDecelFactor = EaseOutQuad(Mathf.Min(1.0f, Deceleration * 1.2f * dt));
-				horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, airDecelFactor);
+				// ✨ SMOOTHED: Better air deceleration
+				horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, Deceleration * 1.2f * dt);
 			}
 
 			bool stillMoving = horizontalVelocity.Length() > 0.1f;
@@ -198,8 +137,9 @@ public partial class Enemy : CharacterBody3D
 		}
 
 		_knockbackVelocity *= KnockbackDamping;
+		// ✨ SMOOTHED: Even smoother knockback recovery (0.12 -> 0.15 for better easing)
 		_knockbackVelocity = _knockbackVelocity.Lerp(Vector3.Zero, 0.15f);
-		if (_knockbackVelocity.Length() < 0.005f)
+		if (_knockbackVelocity.Length() < 0.005f)  // ✨ Earlier reset (0.01 -> 0.005)
 		{
 			_knockbackVelocity = Vector3.Zero;
 		}
@@ -211,8 +151,9 @@ public partial class Enemy : CharacterBody3D
 
 		_attackCooldownTimer -= dt;
 
+		// ✨ IMPROVED: Attack range is StopDistance + small buffer for responsive hits
 		float attackRange = StopDistance + 0.4f;
-		if (!_isAttacking && _player != null && distance <= attackRange && _attackCooldownTimer <= 0.0f)
+		if (_player != null && distance <= attackRange && _attackCooldownTimer <= 0.0f)
 		{
 			DamagePlayerIfClose();
 		}
@@ -220,31 +161,6 @@ public partial class Enemy : CharacterBody3D
 		Velocity = _velocity;
 		MoveAndSlide();
 		UpdateHealthBarPosition();
-	}
-
-	public override void _Process(double delta)
-	{
-		if (_animPlayer != null)
-		{
-			float dt = (float)delta;
-			_currentAnimSpeedScale = Mathf.Lerp(_currentAnimSpeedScale, _targetAnimSpeedScale, ANIMATION_SPEED_LERP * dt);
-			
-			if (!_isAttacking && _animPlayer.IsPlaying())
-			{
-				_animPlayer.SpeedScale = Mathf.Max(0.01f, _currentAnimSpeedScale);
-			}
-			else if (_isAttacking)
-			{
-				_animPlayer.SpeedScale = _currentAnimSpeedScale;
-			}
-		}
-
-		if (Rotation.Y != _targetRotationY)
-		{
-			float dt = (float)delta;
-			float newYaw = Mathf.LerpAngle(Rotation.Y, _targetRotationY, RotationSpeed * dt);
-			Rotation = new Vector3(Rotation.X, newYaw, Rotation.Z);
-		}
 	}
 
 	private bool ResolvePlayer()
@@ -268,10 +184,16 @@ public partial class Enemy : CharacterBody3D
 		}
 	}
 
-	private void RotateTowardDirectionSmoothed(Vector3 direction, float delta)
+	private void RotateTowardDirection(Vector3 direction, float delta)
 	{
 		if (direction == Vector3.Zero) return;
-		_targetRotationY = Mathf.Atan2(direction.X, direction.Z);
+
+		float targetYaw = Mathf.Atan2(direction.X, direction.Z);
+		float currentYaw = Rotation.Y;
+
+		float newYaw = Mathf.LerpAngle(currentYaw, targetYaw, RotationSpeed * delta);
+
+		Rotation = new Vector3(Rotation.X, newYaw, Rotation.Z);
 	}
 
 	private void SetWalking(bool walking)
@@ -285,15 +207,15 @@ public partial class Enemy : CharacterBody3D
 
 		if (walking)
 		{
-			if (_animPlayer.CurrentAnimation != _walkAnim || !_animPlayer.IsPlaying())
-			{
-				_animPlayer.Play(_walkAnim);
-			}
-			_targetAnimSpeedScale = 1.1f;
+			_animPlayer.Play(_walkAnim);
+			// ✨ SMOOTHED: Snappier walk animation (1.1x speed)
+			_animPlayer.SpeedScale = 1.1f;
 		}
 		else
 		{
-			_targetAnimSpeedScale = 0.0f;
+			_animPlayer.Stop();
+			// ✨ SMOOTHED: Reset animation speed
+			_animPlayer.SpeedScale = 1.0f;
 		}
 	}
 
@@ -306,7 +228,6 @@ public partial class Enemy : CharacterBody3D
 			if (library.HasAnimation("mixamo_com"))
 			{
 				Animation animation = library.GetAnimation("mixamo_com");
-				RemovePositionTracks(animation);
 				animation.LoopMode = Animation.LoopModeEnum.Linear;
 				return string.IsNullOrEmpty(libraryName) ? "mixamo_com" : $"{libraryName}/mixamo_com";
 			}
@@ -321,7 +242,6 @@ public partial class Enemy : CharacterBody3D
 				if (animationName == "Take 001") continue;
 
 				Animation animation = library.GetAnimation(animationName);
-				RemovePositionTracks(animation);
 				animation.LoopMode = Animation.LoopModeEnum.Linear;
 				return string.IsNullOrEmpty(libraryName) ? animationName : $"{libraryName}/{animationName}";
 			}
@@ -343,8 +263,10 @@ public partial class Enemy : CharacterBody3D
 				return "";
 			}
 
+			// ✨ FIXED: Don't try to get library, just create new one if needed
 			AnimationLibrary library = null;
 			
+			// Try to get existing library, but don't catch exceptions - just create new
 			try
 			{
 				if (_animPlayer.HasAnimationLibrary("EnemyAnims"))
@@ -354,9 +276,11 @@ public partial class Enemy : CharacterBody3D
 			}
 			catch
 			{
+				// If any error, we'll create a new one below
 				library = null;
 			}
 
+			// If library doesn't exist or failed to load, create new one
 			if (library == null)
 			{
 				library = new AnimationLibrary();
@@ -385,6 +309,7 @@ public partial class Enemy : CharacterBody3D
 			return;
 		}
 
+		// ✨ FIXED: Use HasAnimationLibrary check before getting
 		AnimationLibrary library = null;
 		try
 		{
@@ -460,9 +385,8 @@ public partial class Enemy : CharacterBody3D
 		((StyleBoxFlat)styleBoxBackground).BgColor = new Color(0.2f, 0.2f, 0.2f, 0.9f);
 		_healthBar.AddThemeStyleboxOverride("background", styleBoxBackground);
 
-		Color barColor = _currentStats.ColorTint;
 		StyleBox styleBoxFill = new StyleBoxFlat();
-		((StyleBoxFlat)styleBoxFill).BgColor = barColor;
+		((StyleBoxFlat)styleBoxFill).BgColor = new Color(0.2f, 0.8f, 0.2f, 0.9f);
 		_healthBar.AddThemeStyleboxOverride("fill", styleBoxFill);
 
 		control.AddChild(_healthBar);
@@ -534,6 +458,7 @@ public partial class Enemy : CharacterBody3D
 				damageLabel.QueueFree();
 		}));
 		
+		// Safety timeout - delete label after 2 seconds if tween fails
 		GetTree().CreateTimer(2.0f).Timeout += () => {
 			if (damageLabel != null && IsInstanceValid(damageLabel))
 			{
@@ -563,23 +488,29 @@ public partial class Enemy : CharacterBody3D
 	private void Die()
 	{
 		SetPhysicsProcess(false);
+		RemoveFromGroup("enemy");
 		SpawnRespawnEnemies();
 		QueueFree();
 	}
 
 	public void FlashHit()
 	{
+		// Find first MeshInstance3D in the enemy (works with any structure)
 		MeshInstance3D meshInstance = FindFirstMeshInstance(this);
 		if (meshInstance == null) return;
 
+		// Store original material
 		Material originalMaterial = meshInstance.GetActiveMaterial(0);
 		if (originalMaterial == null) return;
 
+		// Create white material for flash
 		var flashMaterial = new StandardMaterial3D();
 		flashMaterial.AlbedoColor = Colors.White;
 
+		// Apply white material
 		meshInstance.SetSurfaceOverrideMaterial(0, flashMaterial);
 
+		// Return to normal after short duration
 		GetTree().CreateTimer(0.1f).Timeout += () => {
 			if (meshInstance != null && IsInstanceValid(meshInstance) && originalMaterial != null)
 			{
@@ -590,6 +521,7 @@ public partial class Enemy : CharacterBody3D
 
 	private MeshInstance3D FindFirstMeshInstance(Node node)
 	{
+		// Recursively search for first MeshInstance3D
 		if (node is MeshInstance3D mesh)
 			return mesh;
 
@@ -608,10 +540,12 @@ public partial class Enemy : CharacterBody3D
 		Node parent = GetParent();
 		if (parent == null) return;
 
-		string scenePath = GetSceneFilePath();
-		if (string.IsNullOrEmpty(scenePath)) return;
+		var enemies = GetTree().GetNodesInGroup("enemy");
+		if (enemies.Count >= 8) return;
 
-		PackedScene enemyScene = GD.Load<PackedScene>(scenePath);
+		if (string.IsNullOrEmpty(RespawnScenePath)) return;
+
+		PackedScene enemyScene = GD.Load<PackedScene>(RespawnScenePath);
 		if (enemyScene == null) return;
 
 		Vector3 spawnOffset1 = GlobalPosition + new Vector3(3, 0, 0);
@@ -670,8 +604,9 @@ public partial class Enemy : CharacterBody3D
 		{
 			try
 			{
-				_targetAnimSpeedScale = 1.6f;
 				_animPlayer.Play(_attackAnim);
+				// ✨ SMOOTHED: Even faster attacks (1.5 -> 1.6 for snappier feel)
+				_animPlayer.SpeedScale = 1.6f;
 
 				Animation attackAnimation = _animPlayer.GetAnimation(_attackAnim);
 				if (attackAnimation != null)
@@ -687,29 +622,28 @@ public partial class Enemy : CharacterBody3D
 						Vector3 currentPosition = _player.GlobalPosition;
 						float currentDistance = (currentPosition - GlobalPosition).Length();
 						
-						if (currentDistance <= initialDistance + 1.5f)
+						if (currentDistance <= initialDistance + 0.5f && currentDistance <= StopDistance + 0.5f)
 						{
 							player.PlayerTakeDamage(DamageToPlayer);
 						}
 					};
 
-					float cooldownDuration = animDuration + 0.5f;
-					_attackCooldownTimer = cooldownDuration;
-
-					GetTree().CreateTimer(animDuration + 0.15f).Timeout += () =>
+					GetTree().CreateTimer(animDuration + 0.1f).Timeout += () =>
 					{
 						if (IsInstanceValid(this))
 						{
-							_targetAnimSpeedScale = 1.0f;
+							_animPlayer.SpeedScale = 1.0f;
 							_isAttacking = false;
 							_isWalking = false;
 						}
 					};
+
+					_attackCooldownTimer = animDuration + 0.2f;
 				}
 			}
 			catch
 			{
-				_targetAnimSpeedScale = 1.0f;
+				_animPlayer.SpeedScale = 1.0f;
 				_isAttacking = false;
 				_isWalking = false;
 			}
@@ -718,25 +652,6 @@ public partial class Enemy : CharacterBody3D
 		{
 			_isAttacking = false;
 		}
-	}
-
-	private void RemovePositionTracks(Animation animation)
-	{
-		for (int i = animation.GetTrackCount() - 1; i >= 0; i--)
-		{
-			if (animation.TrackGetType(i) == Animation.TrackType.Position3D)
-				animation.RemoveTrack(i);
-		}
-	}
-
-	private float EaseOutQuad(float t)
-	{
-		return 1.0f - (1.0f - t) * (1.0f - t);
-	}
-
-	private float EaseInOutQuad(float t)
-	{
-		return t < 0.5f ? 2.0f * t * t : -1.0f + (4.0f - 2.0f * t) * t;
 	}
 
 	public bool IsAlive => _currentHealth > 0.0f;

@@ -44,7 +44,7 @@ public partial class Player3D : CharacterBody3D
 	[Export] public float DodgeRollStaminaCost = 20.0f;
 
 	// HEALTH & STAMINA
-	[Export] public float MaxPlayerHealth = 100.0f;      // ✨ 100 → 150 (baseline)
+	[Export] public float MaxPlayerHealth = 100.0f;
 	[Export] public float MaxStamina = 150.0f;           // ✨ 100 → 150 (baseline)
 	[Export] public float StaminaDrainRateRun = 30.0f;
 	[Export] public float StaminaRegenRate = 15.0f;
