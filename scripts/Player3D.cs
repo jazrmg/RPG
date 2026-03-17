@@ -8,28 +8,26 @@ public partial class Player3D : CharacterBody3D
 	[Export] public float MaxRunSpeed = 8.5f;
 	[Export] public float GroundAcceleration = 20.0f;
 	[Export] public float RunAcceleration = 30.0f;
-	[Export] public float JumpForce = 4.3f;
+	[Export] public float JumpForce = 3.0f;
 	[Export] public float MouseSensitivity = 0.3f;
 	[Export] public float RotationSpeed = 15.0f;
 	[Export] public float CoyoteTime = 0.16f;
 	[Export] public float JumpBufferTime = 0.16f;
 
 	// COMBAT - LIGHT ATTACK
-	[Export] public float LightSlashDamage = 25.0f;      // ✨ 15 → 25
+	[Export] public float LightSlashDamage = 15.0f;
 	[Export] public float LightSlashKnockback = 5.0f;
-	[Export] public float LightAttackCooldown = 0.15f;    // ✨ 0.4 → 0.15 (even faster base!)
+	[Export] public float LightAttackCooldown = 0.5f;
 
 	// COMBAT - HEAVY ATTACK
-	[Export] public float HeavySlashDamage = 60.0f;      // ✨ 35 → 60
+	[Export] public float HeavySlashDamage = 35.0f;
 	[Export] public float HeavySlashKnockback = 15.0f;
-	[Export] public float HeavyAttackCooldown = 0.6f;    // ✨ 1.0 → 0.6 (faster!)
-	[Export] public float HeavyStaminaCost = 30.0f;
+	[Export] public float HeavyAttackCooldown = 1.2f;
 
 	// COMBAT - SPECIAL ATTACK
-	[Export] public float SpecialDamage = 85.0f;         // ✨ 50 → 85
+	[Export] public float SpecialDamage = 50.0f;
 	[Export] public float SpecialKnockback = 20.0f;
-	[Export] public float SpecialStaminaCost = 60.0f;
-	[Export] public float SpecialCooldown = 1.2f;        // ✨ 1.8 → 1.2 (faster!)
+	[Export] public float SpecialCooldown = 2.0f;
 
 	// COMBAT - GENERAL
 	[Export] public float CriticalChance = 0.25f;
@@ -41,23 +39,16 @@ public partial class Player3D : CharacterBody3D
 	[Export] public float DodgeRollSpeed = 4.2f;
 	[Export] public float DodgeRollDuration = 0.48f;
 	[Export] public float DodgeRollCooldown = 0.75f;
-	[Export] public float DodgeRollStaminaCost = 20.0f;
 
-	// HEALTH & STAMINA
+	// HEALTH
 	[Export] public float MaxPlayerHealth = 100.0f;
-	[Export] public float MaxStamina = 150.0f;           // ✨ 100 → 150 (baseline)
-	[Export] public float StaminaDrainRateRun = 30.0f;
-	[Export] public float StaminaRegenRate = 15.0f;
-	[Export] public float StaminaRegenDelay = 0.5f;
 
 	// PLAYER STATE
 	public float _playerHealth = 100.0f;
-	public float _stamina = 100.0f;
-	private float _staminaEmptyTimer = 0.0f;
 	private float _invincibilityTimer = 0.0f;
 
-	private ProgressBar _playerHealthBar, _staminaBar;
-	private Label _playerHealthLabel, _staminaLabel;
+	private ProgressBar _playerHealthBar;
+	private Label _playerHealthLabel;
 
 	private const string PlayerGroup = "player";
 	private const string AnimationPlayerPath = "CharacterModel/AnimationPlayer";
@@ -101,7 +92,6 @@ public partial class Player3D : CharacterBody3D
 	public AttackMode _currentAttackMode = AttackMode.None;
 	public float _attackModeTimer = 0.0f;
 
-	// ✨ Auto battle system
 	public bool _isAutoBattle = false;
 	private float _autoAttackTimer = 0.0f;
 	private float _autoAttackDelay = 0.8f;
@@ -215,7 +205,6 @@ public partial class Player3D : CharacterBody3D
 
 		HandleAttackModeSelection();
 		HandleAutoBattle(dt);
-
 		HandleSwordToggle();
 		HandleSitToggle();
 		HandleDodgeRoll(dt);
@@ -224,11 +213,10 @@ public partial class Player3D : CharacterBody3D
 		Vector2 inputDir = (_isSitting || _isAttacking) ? Vector2.Zero : 
 			Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
 
-		bool isRunning = inputDir != Vector2.Zero && Input.IsKeyPressed(Key.Shift) && CanRun();
+		bool isRunning = inputDir != Vector2.Zero && Input.IsKeyPressed(Key.Shift);
 		Vector3 moveDirection = _isDodgeRolling ? _dodgeRollDirection : GetCameraRelativeDirection(inputDir);
 
-		// ✨ FIX: Don't allow jumping during auto battle
-		if (!_isAutoBattle && Input.IsActionJustPressed("ui_accept") && !_isSitting && !_isAttacking && IsOnFloor())
+		if (Input.IsActionJustPressed("ui_accept") && !_isSitting && !_isAttacking && IsOnFloor())
 			_jumpBufferCounter = JumpBufferTime;
 
 		bool isGrounded = IsOnFloor();
@@ -253,7 +241,6 @@ public partial class Player3D : CharacterBody3D
 		Velocity = _velocity;
 		MoveAndSlide();
 
-		UpdateStamina(isRunning, dt);
 		UpdateCameraRig();
 		UpdateAnimationState(moveDirection, isRunning, _isJumping, justLanded);
 
@@ -290,7 +277,6 @@ public partial class Player3D : CharacterBody3D
 			_key3WasPressed = false;
 	}
 
-	// ✨ SIMPLIFIED AUTO BATTLE - No more random jumping/dodging!
 	private void HandleAutoBattle(float delta)
 	{
 		if (!_isAutoBattle || _isGameOver || !_isSwordEquipped)
@@ -312,32 +298,31 @@ public partial class Player3D : CharacterBody3D
 		dirToEnemyNorm.Y = 0;
 
 		float healthPercent = _playerHealth / MaxPlayerHealth;
-		float staminaPercent = _stamina / MaxStamina;
 		float enemyHealthPercent = nearestEnemy.CurrentHealth / nearestEnemy.MaxHealth;
-		float braveryLevel = CalculateBravery(healthPercent, staminaPercent, nearestEnemy);
+
+		float braveryLevel = CalculateBravery(healthPercent, enemyHealthPercent);
 
 		bool enemyClosing = distanceToEnemy < 4.5f;
 		
-		// Movement toward enemy
 		TacticalMovement(dirToEnemyNorm, distanceToEnemy, healthPercent, braveryLevel, enemyClosing, delta);
 
-		// Face enemy
 		if (dirToEnemyNorm != Vector3.Zero)
 		{
 			RotateTowardDirection(dirToEnemyNorm, delta * 1.2f);
 		}
 
-		// ✨ NO MORE AUTOMATIC DODGING! Players control dodge manually
-		// Just focus on attacking
+		if (enemyClosing && IsOnFloor())
+		{
+			PredictiveDodging(distanceToEnemy, healthPercent, braveryLevel, delta);
+		}
 
-		// Auto attack logic
 		if (distanceToEnemy <= 3.5f)
 		{
 			_autoAttackTimer -= delta;
 
 			if (_autoAttackTimer <= 0 && !_isAttacking && IsOnFloor())
 			{
-				AttackMode selectedAttack = SelectBraveAttack(healthPercent, staminaPercent, braveryLevel, enemyHealthPercent, distanceToEnemy);
+				AttackMode selectedAttack = SelectBraveAttack(healthPercent, braveryLevel, enemyHealthPercent, distanceToEnemy);
 				_currentAttackMode = selectedAttack;
 
 				bool didAttack = false;
@@ -345,19 +330,19 @@ public partial class Player3D : CharacterBody3D
 				if (selectedAttack == AttackMode.Special && CanSpecialAttack())
 				{
 					PerformSpecialAttack();
-					_autoAttackTimer = _specialAttackCooldownTimer;  // ✨ Use actual cooldown!
+					_autoAttackTimer = _autoAttackDelay + 0.4f;
 					didAttack = true;
 				}
 				else if (selectedAttack == AttackMode.Heavy && CanHeavyAttack())
 				{
 					PerformHeavyAttack();
-					_autoAttackTimer = _heavyAttackCooldownTimer;  // ✨ Use actual cooldown!
+					_autoAttackTimer = _autoAttackDelay + 0.2f;
 					didAttack = true;
 				}
 				else if (CanAttack())
 				{
 					PerformLightAttack();
-					_autoAttackTimer = _lightAttackCooldownTimer;  // ✨ Use actual cooldown!
+					_autoAttackTimer = _autoAttackDelay - 0.1f;
 					didAttack = true;
 				}
 
@@ -373,7 +358,7 @@ public partial class Player3D : CharacterBody3D
 		}
 	}
 
-	private float CalculateBravery(float healthPercent, float staminaPercent, Enemy enemy)
+	private float CalculateBravery(float healthPercent, float enemyHealthPercent)
 	{
 		float bravery = 0.5f;
 
@@ -386,20 +371,10 @@ public partial class Player3D : CharacterBody3D
 		else if (healthPercent > 0.1f) { bravery -= 0.4f; }
 		else if (healthPercent <= 0.08f) { bravery -= 0.6f; }
 
-		if (staminaPercent > 0.85f) { bravery += 0.25f; }
-		else if (staminaPercent > 0.65f) { bravery += 0.15f; }
-		else if (staminaPercent > 0.45f) { bravery += 0.05f; }
-		else if (staminaPercent < 0.1f) { bravery -= 0.2f; }
-
-		if (enemy != null && GodotObject.IsInstanceValid(enemy))
-		{
-			float enemyHealthPercent = enemy.CurrentHealth / enemy.MaxHealth;
-
-			if (enemyHealthPercent < 0.15f) { bravery += 0.5f; }
-			else if (enemyHealthPercent < 0.3f) { bravery += 0.35f; }
-			else if (enemyHealthPercent < 0.5f) { bravery += 0.2f; }
-			else if (enemyHealthPercent > 0.8f) { bravery -= 0.1f; }
-		}
+		if (enemyHealthPercent < 0.15f) { bravery += 0.5f; }
+		else if (enemyHealthPercent < 0.3f) { bravery += 0.35f; }
+		else if (enemyHealthPercent < 0.5f) { bravery += 0.2f; }
+		else if (enemyHealthPercent > 0.8f) { bravery -= 0.1f; }
 
 		float finalBravery = Mathf.Clamp(bravery, 0.0f, 1.0f);
 		
@@ -466,53 +441,99 @@ public partial class Player3D : CharacterBody3D
 		}
 	}
 
-	private AttackMode SelectBraveAttack(float healthPercent, float staminaPercent, float braveryLevel, float enemyHealthPercent, float distance)
+	private void PredictiveDodging(float distanceToEnemy, float healthPercent, float braveryLevel, float delta)
+	{
+		if (_lastDamageTime > 0 && IsOnFloor())
+		{
+			if (GD.Randf() < 0.90f)
+			{
+				_jumpBufferCounter = JumpBufferTime;
+				return;
+			}
+		}
+
+		if (distanceToEnemy < 2.0f && IsOnFloor())
+		{
+			if (GD.Randf() < 0.80f)
+			{
+				_jumpBufferCounter = JumpBufferTime;
+				return;
+			}
+		}
+
+		float baseDodgeChance = 0.15f;
+		
+		if (healthPercent < 0.75f) baseDodgeChance = 0.20f;
+		if (healthPercent < 0.60f) baseDodgeChance = 0.25f;
+		if (healthPercent < 0.50f) baseDodgeChance = 0.30f;
+		if (healthPercent < 0.35f) baseDodgeChance = 0.40f;
+		if (healthPercent < 0.20f) baseDodgeChance = 0.50f;
+		if (healthPercent < 0.10f) baseDodgeChance = 0.60f;
+
+		float distanceMultiplier = 1.0f;
+		if (distanceToEnemy < 3.5f) distanceMultiplier = 2.0f;
+		if (distanceToEnemy < 2.5f) distanceMultiplier = 3.0f;
+		if (distanceToEnemy < 1.8f) distanceMultiplier = 4.0f;
+
+		float braveryModifier = 1.0f - (braveryLevel * 0.1f);
+		braveryModifier = Mathf.Max(braveryModifier, 0.7f);
+
+		float finalDodgeChance = baseDodgeChance * distanceMultiplier * braveryModifier;
+		finalDodgeChance = Mathf.Min(finalDodgeChance, 0.85f);
+
+		if (distanceToEnemy < 3.0f)
+		{
+			finalDodgeChance = Mathf.Max(finalDodgeChance, 0.25f);
+		}
+
+		if (GD.Randf() < finalDodgeChance && IsOnFloor())
+		{
+			_jumpBufferCounter = JumpBufferTime;
+		}
+	}
+
+	private AttackMode SelectBraveAttack(float healthPercent, float braveryLevel, float enemyHealthPercent, float distance)
 	{
 		if (healthPercent < 0.08f)
 		{
 			return AttackMode.Light;
 		}
 
-		if (staminaPercent < 0.12f)
-		{
-			return AttackMode.Light;
-		}
-
-		if (enemyHealthPercent < 0.2f && staminaPercent > 0.4f && braveryLevel > 0.5f)
+		if (enemyHealthPercent < 0.2f && braveryLevel > 0.5f)
 		{
 			if (GD.Randf() < 0.8f) { return AttackMode.Special; }
 			if (GD.Randf() < 0.7f) { return AttackMode.Heavy; }
 		}
 
-		if (enemyHealthPercent < 0.5f && staminaPercent > 0.45f)
+		if (enemyHealthPercent < 0.5f)
 		{
 			if (GD.Randf() < 0.65f) { return AttackMode.Heavy; }
-			if (staminaPercent > 0.7f && GD.Randf() < 0.4f) { return AttackMode.Special; }
+			if (GD.Randf() < 0.4f) { return AttackMode.Special; }
 		}
 
 		if (braveryLevel > 0.85f)
 		{
-			if (staminaPercent > 0.65f && GD.Randf() < 0.65f) { return AttackMode.Special; }
-			if (staminaPercent > 0.35f && GD.Randf() < 0.8f) { return AttackMode.Heavy; }
+			if (GD.Randf() < 0.65f) { return AttackMode.Special; }
+			if (GD.Randf() < 0.8f) { return AttackMode.Heavy; }
 		}
 		else if (braveryLevel > 0.70f)
 		{
-			if (staminaPercent > 0.5f && GD.Randf() < 0.7f) { return AttackMode.Heavy; }
-			if (staminaPercent > 0.75f && GD.Randf() < 0.45f) { return AttackMode.Special; }
+			if (GD.Randf() < 0.7f) { return AttackMode.Heavy; }
+			if (GD.Randf() < 0.45f) { return AttackMode.Special; }
 		}
 		else if (braveryLevel > 0.55f)
 		{
-			if (staminaPercent > 0.45f && GD.Randf() < 0.6f) { return AttackMode.Heavy; }
-			if (staminaPercent > 0.8f && GD.Randf() < 0.3f) { return AttackMode.Special; }
+			if (GD.Randf() < 0.6f) { return AttackMode.Heavy; }
+			if (GD.Randf() < 0.3f) { return AttackMode.Special; }
 		}
 		else if (braveryLevel > 0.40f)
 		{
-			if (staminaPercent > 0.5f && GD.Randf() < 0.45f) { return AttackMode.Heavy; }
-			if (staminaPercent > 0.8f && GD.Randf() < 0.2f) { return AttackMode.Special; }
+			if (GD.Randf() < 0.45f) { return AttackMode.Heavy; }
+			if (GD.Randf() < 0.2f) { return AttackMode.Special; }
 		}
 		else
 		{
-			if (staminaPercent > 0.6f && healthPercent > 0.6f && GD.Randf() < 0.25f) { return AttackMode.Heavy; }
+			if (GD.Randf() < 0.25f && healthPercent > 0.6f) { return AttackMode.Heavy; }
 		}
 
 		return AttackMode.Light;
@@ -597,7 +618,7 @@ public partial class Player3D : CharacterBody3D
 		else
 		{
 			_lastInputDirection = Vector3.Zero;
-			horizontalVelocity *= isGrounded ? 0.94f : 0.88f;
+			horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, 8.0f * delta);
 		}
 
 		_velocity.X = horizontalVelocity.X;
@@ -634,13 +655,6 @@ public partial class Player3D : CharacterBody3D
 			return;
 		}
 
-		// ✨ FIX: Don't allow dodge during auto battle
-		if (_isAutoBattle)
-		{
-			_dodgeKeyWasPressed = false;
-			return;
-		}
-
 		if (Input.IsActionPressed("dodge") && !_dodgeKeyWasPressed)
 		{
 			_dodgeKeyWasPressed = true;
@@ -657,19 +671,11 @@ public partial class Player3D : CharacterBody3D
 				return;
 			}
 
-			if (!HasStaminaForAction(DodgeRollStaminaCost))
-			{
-				_dodgeKeyWasPressed = false;
-				return;
-			}
-
 			_isDodgeRolling = true;
 			_dodgeRollDirection = _lastInputDirection != Vector3.Zero ? _lastInputDirection : -_camera.GlobalTransform.Basis.Z;
 			_dodgeRollDirection.Y = 0;
 			_dodgeRollDirection = _dodgeRollDirection.Normalized();
 
-			_stamina -= DodgeRollStaminaCost;
-			_staminaEmptyTimer = StaminaRegenDelay;
 			_invincibilityTimer = DodgeRollDuration;
 
 			if (_animationCache.TryGetValue("DodgeSlide", out string dodgeAnimPath))
@@ -725,7 +731,7 @@ public partial class Player3D : CharacterBody3D
 	private void UpdateCameraRig()
 	{
 		Vector3 targetCamPos = GlobalPosition + Vector3.Up * _cameraHeightOffset;
-		_smoothCameraPos = _smoothCameraPos.Lerp(targetCamPos, 0.18f);  // ✨ Smoother follow
+		_smoothCameraPos = _smoothCameraPos.Lerp(targetCamPos, 0.12f);
 		_springArm.GlobalPosition = _smoothCameraPos;
 		
 		_springArm.GlobalRotation = new Vector3(_cameraPitch, _cameraYaw, 0.0f);
@@ -826,24 +832,15 @@ public partial class Player3D : CharacterBody3D
 		}
 	}
 
-	private bool CanAttack() => !_isSitting && _lightAttackCooldownTimer <= 0 && IsOnFloor() && _isSwordEquipped;  // ✨ NO STAMINA COST!
-	private bool CanHeavyAttack() => !_isSitting && _heavyAttackCooldownTimer <= 0 && HasStaminaForAction(HeavyStaminaCost) && IsOnFloor() && _isSwordEquipped;
-	private bool CanSpecialAttack() => !_isSitting && _specialAttackCooldownTimer <= 0 && HasStaminaForAction(SpecialStaminaCost) && IsOnFloor() && _isSwordEquipped;
+	private bool CanAttack() => !_isSitting && _lightAttackCooldownTimer <= 0 && IsOnFloor() && _isSwordEquipped;
+	private bool CanHeavyAttack() => !_isSitting && _heavyAttackCooldownTimer <= 0 && IsOnFloor() && _isSwordEquipped;
+	private bool CanSpecialAttack() => !_isSitting && _specialAttackCooldownTimer <= 0 && IsOnFloor() && _isSwordEquipped;
 
 	private void PerformLightAttack()
 	{
 		_isAttacking = true;
 		_hitEnemiesThisAttack.Clear();
-		
-		// ✨ FIXED: Apply attack speed bonus to cooldown
-		float cooldown = LightAttackCooldown;
-		if (LevelingSystem != null)
-		{
-			float attackSpeedMultiplier = LevelingSystem.GetAttackSpeedMultiplier();
-			cooldown *= attackSpeedMultiplier;
-		}
-		_lightAttackCooldownTimer = cooldown;
-		
+		_lightAttackCooldownTimer = LightAttackCooldown;
 		_currentAttackMode = AttackMode.None;
 
 		if (_comboTimer > 0)
@@ -857,49 +854,26 @@ public partial class Player3D : CharacterBody3D
 		_comboTimer = 0.5f;
 
 		PlayAnimation("SwordSlash");
-		CreateSlashEffect();
 	}
 
 	private void PerformHeavyAttack()
 	{
 		_isAttacking = true;
 		_hitEnemiesThisAttack.Clear();
-		
-		// ✨ FIXED: Apply attack speed bonus to cooldown
-		float cooldown = HeavyAttackCooldown;
-		if (LevelingSystem != null)
-		{
-			float attackSpeedMultiplier = LevelingSystem.GetAttackSpeedMultiplier();
-			cooldown *= attackSpeedMultiplier;
-		}
-		_heavyAttackCooldownTimer = cooldown;
-		
-		// ✨ NO STAMINA COST! Only running drains stamina!
+		_heavyAttackCooldownTimer = HeavyAttackCooldown;
 		_currentAttackMode = AttackMode.None;
 
 		PlayAnimation("SwordSlash");
-		CreateSlashEffect();
 	}
 
 	private void PerformSpecialAttack()
 	{
 		_isAttacking = true;
 		_hitEnemiesThisAttack.Clear();
-		
-		// ✨ FIXED: Apply attack speed bonus to cooldown
-		float cooldown = SpecialCooldown;
-		if (LevelingSystem != null)
-		{
-			float attackSpeedMultiplier = LevelingSystem.GetAttackSpeedMultiplier();
-			cooldown *= attackSpeedMultiplier;
-		}
-		_specialAttackCooldownTimer = cooldown;
-		
-		// ✨ NO STAMINA COST! Only running drains stamina!
+		_specialAttackCooldownTimer = SpecialCooldown;
 		_currentAttackMode = AttackMode.None;
 
 		PlayAnimation("SwordSlash");
-		CreateSlashEffect();
 	}
 
 	private void CheckAttackHits()
@@ -923,15 +897,7 @@ public partial class Player3D : CharacterBody3D
 				float damage = DetermineAttackDamage(out bool isCritical);
 				float knockback = DetermineAttackKnockback();
 
-				// ✨ MASSIVE screen shake on hit! More intense for crits!
-				if (isCritical)
-				{
-					ShakeScreen(0.4f, 0.6f);  // ✨ HUGE shake for crits!
-				}
-				else
-				{
-					ShakeScreen(0.2f, 0.3f);  // ✨ Strong shake for normal hits
-				}
+				ShakeScreen(0.15f, 0.2f);
 				
 				enemy.FlashHit();
 				
@@ -951,39 +917,15 @@ public partial class Player3D : CharacterBody3D
 	{
 		float baseDamage = LightSlashDamage;
 
-		if (_stamina < MaxStamina - HeavyStaminaCost + 1)
-			baseDamage = HeavySlashDamage;
-
-		if (_stamina < MaxStamina - SpecialStaminaCost + 1)
-			baseDamage = SpecialDamage;
-
 		if (_comboCount >= 2)
 		{
 			baseDamage *= (1.0f + (_comboCount * 0.5f));
 		}
 
-		// ✨ MASSIVE SCALING: Exponential damage growth!
-		if (LevelingSystem != null && LevelingSystem.DamagePoints > 0)
-		{
-			// 1 point = +60% damage
-			// 2 points = +144% damage  
-			// 3 points = +285% damage
-			// Exponential growth = FEEL POWERFUL!
-			float damageMultiplier = Mathf.Pow(1.6f, LevelingSystem.DamagePoints);
-			baseDamage *= damageMultiplier;
-		}
-
-		// ✨ MASSIVE: Apply crit chance bonus
-		float critChance = CriticalChance;
-		if (LevelingSystem != null)
-		{
-			critChance += LevelingSystem.GetCritChanceBonus();
-		}
-
-		isCritical = GD.Randf() < critChance;
+		isCritical = GD.Randf() < CriticalChance;
 		if (isCritical)
 		{
-			baseDamage *= CriticalMultiplier * 2.0f;  // ✨ Crits hit TWICE as hard!
+			baseDamage *= CriticalMultiplier;
 		}
 
 		return baseDamage;
@@ -991,13 +933,7 @@ public partial class Player3D : CharacterBody3D
 
 	private float DetermineAttackKnockback()
 	{
-		if (_stamina > MaxStamina - HeavyStaminaCost)
-			return LightSlashKnockback;
-
-		if (_stamina > MaxStamina - SpecialStaminaCost)
-			return HeavySlashKnockback;
-
-		return SpecialKnockback;
+		return LightSlashKnockback;
 	}
 
 	private void UpdateAnimationState(Vector3 moveDirection, bool isRunning, bool jumped, bool landed)
@@ -1022,18 +958,7 @@ public partial class Player3D : CharacterBody3D
 			_animPlayer.Play(path);
 			if (name.Contains("Attack") || name.Contains("Slash"))
 			{
-				// ✨ CRITICAL FIX: Animation speed scales with attack speed!
-				float baseSpeed = 2.0f;  // Base 2x speed
-				
-				if (LevelingSystem != null && LevelingSystem.AttackSpeedPoints > 0)
-				{
-					// Animation speed multiplier: 1 point = 1.2x speed
-					float speedMultiplier = 1.0f + (LevelingSystem.AttackSpeedPoints * 0.12f);
-					baseSpeed *= speedMultiplier;
-				}
-				
-				// Cap at 100x speed (prevent animation breaks)
-				_animPlayer.SpeedScale = Mathf.Min(baseSpeed, 100.0f);
+				_animPlayer.SpeedScale = 1.15f;
 			}
 			else
 			{
@@ -1042,221 +967,7 @@ public partial class Player3D : CharacterBody3D
 		}
 	}
 
-	private void CreatePlayerHealthBar()
-	{
-		_playerHealth = MaxPlayerHealth;
-		_stamina = MaxStamina;
-
-		(_playerHealthBar, _playerHealthLabel) = HealthBarFactory.CreateScreenBar(
-			this, MaxPlayerHealth, 50, "Health", new Color(0.2f, 1.0f, 0.2f, 0.8f));
-
-		(_staminaBar, _staminaLabel) = HealthBarFactory.CreateScreenBar(
-			this, MaxStamina, 90, "Stamina", new Color(1.0f, 1.0f, 0.2f, 0.8f));
-
-	}
-
-	public void PlayerTakeDamage(float damage)
-	{
-		if (_isGameOver || _invincibilityTimer > 0.0f) return;
-
-		_playerHealth = Mathf.Max(0, _playerHealth - damage);
-		_invincibilityTimer = InvincibilityDuration;
-		_lastDamageTime = 0.3f;
-
-		// ✨ FIXED: Show effective max health (with bonuses)
-		float effectiveMaxHealth = GetEffectiveMaxHealth();
-		if (_playerHealthBar != null) _playerHealthBar.Value = _playerHealth;
-		if (_playerHealthLabel != null) _playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {effectiveMaxHealth:F0}";
-
-		ShowDamageNumber(damage);
-
-		Node3D enemy = GetTree().GetFirstNodeInGroup("enemy") as Node3D;
-		if (enemy != null)
-		{
-			Vector3 knockbackDir = (GlobalPosition - enemy.GlobalPosition).Normalized();
-			knockbackDir.Y = 0;
-			_velocity += knockbackDir.Normalized() * 5.0f;
-		}
-
-		if (_playerHealth <= 0.0f)
-			GameOver();
-	}
-
-	private void OnPlayerLevelUp()
-	{
-		// ✨ FIXED: Restore to effective max (includes bonuses)
-		float effectiveMaxHealth = GetEffectiveMaxHealth();
-		float effectiveMaxStamina = GetEffectiveMaxStamina();
-		
-		_playerHealth = effectiveMaxHealth;
-		_stamina = effectiveMaxStamina;
-
-		if (_playerHealthBar != null) _playerHealthBar.Value = _playerHealth;
-		if (_staminaBar != null) _staminaBar.Value = _stamina;
-		if (_playerHealthLabel != null) _playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {effectiveMaxHealth:F0}";
-		if (_staminaLabel != null) _staminaLabel.Text = $"Stamina: {_stamina:F0} / {effectiveMaxStamina:F0}";
-	}
-
-	private void ShowDamageNumber(float damage, bool isCritical = false)
-	{
-		Camera3D camera = GetViewport().GetCamera3D();
-		if (camera == null) return;
-
-		Label label = new Label();
-		
-		// ✨ MASSIVE: Make crits look INSANE!
-		if (isCritical)
-		{
-			label.Text = $"{damage:F0}!!! CRIT!!!";
-			label.AddThemeColorOverride("font_color", new Color(1, 0.2f, 0, 1));  // Bright red
-			label.AddThemeFontSizeOverride("font_size", 60);  // ✨ HUGE font!
-		}
-		else
-		{
-			label.Text = damage.ToString("F0");
-			label.AddThemeColorOverride("font_color", Colors.Yellow);  // Yellow for normal
-			label.AddThemeFontSizeOverride("font_size", 40);
-		}
-		
-		label.ZIndex = 100;
-		
-		Vector3 worldPos = GlobalPosition + Vector3.Up * 2.0f;
-		Vector2 screenPos = camera.UnprojectPosition(worldPos);
-		label.GlobalPosition = screenPos;
-		
-		GetTree().Root.AddChild(label);
-
-		Tween tween = CreateTween();
-		Vector2 startPos = label.GlobalPosition;
-		tween.SetTrans(Tween.TransitionType.Linear);
-		
-		float moveDistance = isCritical ? 120.0f : 80.0f;
-		tween.Parallel().TweenProperty(label, "global_position", startPos - Vector2.Up * moveDistance, 1.2f);
-		tween.Parallel().TweenProperty(label, "modulate", new Color(1, 1, 1, 0), 1.2f);
-		
-		tween.TweenCallback(Callable.From(() => {
-			if (label != null && IsInstanceValid(label))
-				label.QueueFree();
-		}));
-		
-		GetTree().CreateTimer(2.0f).Timeout += () => {
-			if (label != null && IsInstanceValid(label))
-			{
-				label.QueueFree();
-			}
-		};
-	}
-
-	private void ShakeScreen(float duration, float intensity)
-	{
-		Camera3D camera = GetViewport().GetCamera3D();
-		if (camera == null) return;
-
-		Tween tween = CreateTween();
-		tween.SetTrans(Tween.TransitionType.Sine);
-		tween.SetEase(Tween.EaseType.InOut);
-		
-		Vector3 originalPos = camera.GlobalPosition;
-		Vector3 shakeOffset = new Vector3(
-			(float)GD.Randf() * intensity - intensity / 2,
-			(float)GD.Randf() * intensity - intensity / 2,
-			0
-		);
-		
-		tween.TweenProperty(camera, "global_position", originalPos + shakeOffset, duration * 0.25f);
-		tween.TweenProperty(camera, "global_position", originalPos, duration * 0.75f);
-	}
-
-	private void CreateSlashEffect()
-	{
-		if (_swordRoot == null) return;
-
-		var slashEffect = new Panel();
-		slashEffect.ZIndex = -1;
-		
-		var slashStyle = new StyleBoxFlat { BgColor = new Color(0.8f, 0.9f, 1.0f, 0.6f) };
-		slashEffect.AddThemeStyleboxOverride("panel", slashStyle);
-		
-		Vector3 swordWorldPos = _swordRoot.GlobalPosition;
-		Vector2 screenPos = GetViewport().GetCamera3D().UnprojectPosition(swordWorldPos);
-		
-		slashEffect.GlobalPosition = screenPos - Vector2.One * 20;
-		slashEffect.CustomMinimumSize = Vector2.One * 40;
-		
-		GetTree().Root.AddChild(slashEffect);
-		
-		Tween tween = CreateTween();
-		tween.SetTrans(Tween.TransitionType.Sine);
-		tween.SetEase(Tween.EaseType.Out);
-		
-		tween.Parallel().TweenProperty(slashEffect, "custom_minimum_size", Vector2.One * 100, 0.3f);
-		tween.Parallel().TweenProperty(slashEffect, "modulate", new Color(1, 1, 1, 0), 0.3f);
-		
-		tween.TweenCallback(Callable.From(() => {
-			if (slashEffect != null && IsInstanceValid(slashEffect))
-				slashEffect.QueueFree();
-		}));
-	}
-
-	private void UpdateStamina(bool isRunning, float delta)
-	{
-		float effectiveMaxStamina = GetEffectiveMaxStamina();
-
-		if (_isAutoBattle && _lastInputDirection != Vector3.Zero && IsOnFloor())
-		{
-			_stamina = Mathf.Max(0, _stamina - StaminaDrainRateRun * 0.5f * delta);
-			_staminaEmptyTimer = 0.3f;
-		}
-		else if (isRunning && IsOnFloor())
-		{
-			_stamina = Mathf.Max(0, _stamina - StaminaDrainRateRun * delta);
-			_staminaEmptyTimer = 0.5f;
-		}
-		else if (_isAttacking)
-		{
-			_staminaEmptyTimer = 0.2f;
-		}
-		else
-		{
-			_staminaEmptyTimer = Mathf.Max(0, _staminaEmptyTimer - delta);
-			if (_staminaEmptyTimer <= 0 && !isRunning && !_isAttacking)
-				_stamina = Mathf.Min(effectiveMaxStamina, _stamina + StaminaRegenRate * delta);
-		}
-
-		// ✨ FIXED: Clamp to effective max stamina (with bonuses)
-		_stamina = Mathf.Clamp(_stamina, 0, effectiveMaxStamina);
-
-		if (_staminaBar != null) _staminaBar.Value = _stamina;
-		if (_staminaLabel != null) _staminaLabel.Text = $"Stamina: {_stamina:F0} / {effectiveMaxStamina:F0}";
-	}
-
-	// ✨ FIXED: Calculate effective max health with leveling bonus
-	private float GetEffectiveMaxHealth()
-	{
-		float healthBonus = 0;
-		if (LevelingSystem != null)
-		{
-			healthBonus = LevelingSystem.GetHealthBonus();
-		}
-		return MaxPlayerHealth + healthBonus;
-	}
-
-	// ✨ FIXED: Calculate effective max stamina with leveling bonus
-	private float GetEffectiveMaxStamina()
-	{
-		float staminaBonus = 0;
-		if (LevelingSystem != null)
-		{
-			staminaBonus = LevelingSystem.GetStaminaBonus();
-		}
-		return MaxStamina + staminaBonus;
-	}
-
-	private bool HasStaminaForAction(float cost) => _stamina >= cost;
-	public float GetStamina() => _stamina;
-	public bool CanRun() => _stamina > 0.0f;
-	public float GetPlayerHealth() => _playerHealth;
-	public bool IsPlayerAlive() => _playerHealth > 0.0f;
+	private bool IsPlayerAlive() => _playerHealth > 0.0f;
 
 	private void GameOver()
 	{
@@ -1306,5 +1017,99 @@ public partial class Player3D : CharacterBody3D
 	private void RestartGame()
 	{
 		GetTree().ReloadCurrentScene();
+	}
+
+	private void OnPlayerLevelUp()
+	{
+		_playerHealth = MaxPlayerHealth;
+
+		if (_playerHealthBar != null) _playerHealthBar.Value = _playerHealth;
+		if (_playerHealthLabel != null) _playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {MaxPlayerHealth:F0}";
+	}
+
+	private void ShakeScreen(float duration, float intensity)
+	{
+		Camera3D camera = GetViewport().GetCamera3D();
+		if (camera == null) return;
+
+		Tween tween = CreateTween();
+		tween.SetTrans(Tween.TransitionType.Sine);
+		tween.SetEase(Tween.EaseType.InOut);
+		
+		Vector3 originalPos = camera.GlobalPosition;
+		Vector3 shakeOffset = new Vector3(
+			(float)GD.Randf() * intensity - intensity / 2,
+			(float)GD.Randf() * intensity - intensity / 2,
+			0
+		);
+		
+		tween.TweenProperty(camera, "global_position", originalPos + shakeOffset, duration * 0.25f);
+		tween.TweenProperty(camera, "global_position", originalPos, duration * 0.75f);
+	}
+
+	public void PlayerTakeDamage(float damage)
+	{
+		if (_isGameOver || _invincibilityTimer > 0.0f) return;
+
+		_playerHealth = Mathf.Max(0, _playerHealth - damage);
+		_invincibilityTimer = InvincibilityDuration;
+		_lastDamageTime = 0.3f;
+
+		if (_playerHealthBar != null) _playerHealthBar.Value = _playerHealth;
+		if (_playerHealthLabel != null) _playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {MaxPlayerHealth:F0}";
+
+		ShowDamageNumber(damage);
+
+		Node3D enemy = GetTree().GetFirstNodeInGroup("enemy") as Node3D;
+		if (enemy != null)
+		{
+			Vector3 knockbackDir = (GlobalPosition - enemy.GlobalPosition).Normalized();
+			knockbackDir.Y = 0;
+			_velocity += knockbackDir.Normalized() * 5.0f;
+		}
+
+		if (_playerHealth <= 0.0f)
+			GameOver();
+	}
+
+	private void ShowDamageNumber(float damage, bool isCritical = false)
+	{
+		Camera3D camera = GetViewport().GetCamera3D();
+		if (camera == null) return;
+
+		Label label = new Label();
+		label.Text = isCritical ? $"{damage:F0}!" : damage.ToString("F0");
+		
+		Color damageColor = isCritical ? new Color(1, 0.8f, 0, 1) : Colors.Red;
+		label.AddThemeColorOverride("font_color", damageColor);
+		
+		int fontSize = isCritical ? 40 : 28;
+		label.AddThemeFontSizeOverride("font_size", fontSize);
+		label.ZIndex = 100;
+		
+		Vector3 worldPos = GlobalPosition + Vector3.Up * 2.0f;
+		Vector2 screenPos = camera.UnprojectPosition(worldPos);
+		label.GlobalPosition = screenPos;
+		
+		GetTree().Root.AddChild(label);
+
+		Tween tween = CreateTween();
+		Vector2 startPos = label.GlobalPosition;
+		tween.SetTrans(Tween.TransitionType.Linear);
+		
+		tween.Parallel().TweenProperty(label, "global_position", startPos - Vector2.Up * 60.0f, 1.2f);
+		tween.Parallel().TweenProperty(label, "modulate", new Color(1, 1, 1, 0), 1.2f);
+		
+		tween.TweenCallback(Callable.From(() => {
+			if (label != null && IsInstanceValid(label))
+				label.QueueFree();
+		}));
+		
+		GetTree().CreateTimer(2.0f).Timeout += () => {
+			if (label != null && IsInstanceValid(label))
+			{
+				label.QueueFree();
+			}
+		};
 	}
 }

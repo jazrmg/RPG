@@ -548,29 +548,28 @@ public partial class Enemy : CharacterBody3D
 		PackedScene enemyScene = GD.Load<PackedScene>(RespawnScenePath);
 		if (enemyScene == null) return;
 
-		Vector3 spawnOffset1 = GlobalPosition + new Vector3(3, 0, 0);
-		Vector3 spawnOffset2 = GlobalPosition + new Vector3(-3, 0, 0);
+		// ✨ NEW: Random respawn positions instead of fixed offsets
+		for (int i = 0; i < 2; i++)
+		{
+			float randomDistance = 4.0f + GD.Randf() * 8.0f;  // 4-12 units away
+			float randomAngle = GD.Randf() * Mathf.Tau;  // 0-360 degrees
+			
+			Vector3 spawnOffset = new Vector3(
+				Mathf.Cos(randomAngle) * randomDistance,
+				0,
+				Mathf.Sin(randomAngle) * randomDistance
+			);
 
-		try
-		{
-			Node spawnedNode1 = enemyScene.Instantiate();
-			parent.AddChild(spawnedNode1);
-			spawnedNode1.Set("global_position", spawnOffset1);
-			spawnedNode1.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
-		}
-		catch
-		{
-		}
-
-		try
-		{
-			Node spawnedNode2 = enemyScene.Instantiate();
-			parent.AddChild(spawnedNode2);
-			spawnedNode2.Set("global_position", spawnOffset2);
-			spawnedNode2.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
-		}
-		catch
-		{
+			try
+			{
+				Node spawnedNode = enemyScene.Instantiate();
+				parent.AddChild(spawnedNode);
+				spawnedNode.Set("global_position", GlobalPosition + spawnOffset);
+				spawnedNode.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
+			}
+			catch
+			{
+			}
 		}
 	}
 
