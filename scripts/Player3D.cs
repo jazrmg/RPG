@@ -63,10 +63,12 @@ public partial class Player3D : CharacterBody3D
 	private AnimationPlayer _animPlayer;
 	private Node3D _swordRoot;
 
+	// ✨ NEW: Virtual Joystick
+	private VirtualJoystick _virtualJoystick;
+
 	public LevelingSystem LevelingSystem { get; private set; }
 	public StatAllocationUI StatsUI { get; private set; }
 
-	// ✨ NEW: Property for max health that includes stat bonuses
 	public float MaxPlayerHealth => BaseMaxPlayerHealth + (LevelingSystem != null ? LevelingSystem.GetHealthBonus() : 0);
 
 	private Dictionary<string, string> _animationCache = new Dictionary<string, string>();
@@ -149,10 +151,13 @@ public partial class Player3D : CharacterBody3D
 		AddChild(statUI);
 		statUI.CallDeferred(nameof(StatAllocationUI.InitializeDirectly), LevelingSystem);
 
+		// ✨ NEW: Create virtual joystick
+		_virtualJoystick = new VirtualJoystick();
+		AddChild(_virtualJoystick);
+
 		if (_swordRoot != null)
 			_swordRoot.Visible = false;
 
-		// ✨ FIXED: Set initial health with stat bonus
 		_playerHealth = MaxPlayerHealth;
 
 		InitializeAnimations();
@@ -213,8 +218,8 @@ public partial class Player3D : CharacterBody3D
 		HandleDodgeRoll(dt);
 		HandleAttack();
 
-		Vector2 inputDir = (_isSitting || _isAttacking) ? Vector2.Zero : 
-			Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
+		// ✨ MODIFIED: Get input from joystick OR keyboard
+		Vector2 inputDir = GetMovementInput();
 
 		bool isRunning = inputDir != Vector2.Zero && Input.IsKeyPressed(Key.Shift);
 		Vector3 moveDirection = _isDodgeRolling ? _dodgeRollDirection : GetCameraRelativeDirection(inputDir);
@@ -248,6 +253,22 @@ public partial class Player3D : CharacterBody3D
 		UpdateAnimationState(moveDirection, isRunning, _isJumping, justLanded);
 
 		_isJumping = false;
+	}
+
+	// ✨ NEW: Get movement input from joystick or keyboard
+	private Vector2 GetMovementInput()
+	{
+		// Check if joystick is being used
+		if (_virtualJoystick != null && _virtualJoystick.IsJoystickActive())
+		{
+			return _virtualJoystick.GetJoystickInput();
+		}
+
+		// Otherwise use keyboard
+		if (_isSitting || _isAttacking)
+			return Vector2.Zero;
+
+		return Input.GetVector("ui_left", "ui_right", "ui_up", "ui_down");
 	}
 
 	private void HandleAttackModeSelection()
@@ -799,7 +820,6 @@ public partial class Player3D : CharacterBody3D
 		_lastPerformedAttack = AttackMode.Heavy;
 		_hitEnemiesThisAttack.Clear();
 		
-		// ✨ FIXED: Apply attack speed multiplier to cooldown
 		float speedMult = LevelingSystem != null ? LevelingSystem.GetAttackSpeedMultiplier() : 1.0f;
 		_heavyAttackCooldownTimer = HeavyAttackCooldown * speedMult;
 		
@@ -814,7 +834,6 @@ public partial class Player3D : CharacterBody3D
 		_lastPerformedAttack = AttackMode.Special;
 		_hitEnemiesThisAttack.Clear();
 		
-		// ✨ FIXED: Apply attack speed multiplier to cooldown
 		float speedMult = LevelingSystem != null ? LevelingSystem.GetAttackSpeedMultiplier() : 1.0f;
 		_specialAttackCooldownTimer = SpecialCooldown * speedMult;
 		
@@ -869,7 +888,6 @@ public partial class Player3D : CharacterBody3D
 			_ => LightSlashDamage
 		};
 
-		// ✨ FIXED: Apply damage multiplier from stats!
 		if (LevelingSystem != null)
 		{
 			float damageMultiplier = LevelingSystem.GetDamageMultiplier();
@@ -879,13 +897,12 @@ public partial class Player3D : CharacterBody3D
 		if (_comboCount >= 2)
 			baseDamage *= (1.0f + (_comboCount * 0.5f));
 
-		// ✨ FIXED: Apply crit chance bonus from stats!
 		float critChance = BaseCriticalChance;
 		if (LevelingSystem != null)
 		{
 			critChance += LevelingSystem.GetCritChanceBonus();
 		}
-		critChance = Mathf.Clamp(critChance, 0, 1.0f);  // Cap at 100%
+		critChance = Mathf.Clamp(critChance, 0, 1.0f);
 
 		isCritical = GD.Randf() < critChance;
 		if (isCritical)
@@ -981,7 +998,6 @@ public partial class Player3D : CharacterBody3D
 
 	private void OnPlayerLevelUp()
 	{
-		// ✨ FIXED: Restore health including stat bonus
 		_playerHealth = MaxPlayerHealth;
 		if (_playerHealthBar != null) _playerHealthBar.Value = _playerHealth;
 		if (_playerHealthLabel != null) _playerHealthLabel.Text = $"Health: {_playerHealth:F0} / {MaxPlayerHealth:F0}";
