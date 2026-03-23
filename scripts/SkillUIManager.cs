@@ -1,368 +1,211 @@
 using Godot;
-using System;
 
 public partial class SkillUIManager : Control
 {
-	private Label _healthLabel, _staminaLabel;
-	private ProgressBar _healthBar, _staminaBar;
-	private Button _heavyBtn, _specialBtn;
-	private Control _heavyOverlay, _specialOverlay;
-	private Label _heavyCooldown, _specialCooldown;
-	private Player3D _player;
-
-	private Label _levelLabel;
+	private Label _healthValue;
+	private ProgressBar _healthBar;
+	private Label _levelTitle;
 	private ProgressBar _xpBar;
-	private Label _xpLabel;
-
+	
+	private Button _buttonLight;
+	private Button _buttonHeavy;
+	private Button _buttonSpecial;
+	private Button _buttonAuto;
+	private Button _buttonStats;
+	private Button _buttonEquip;
+	
+	private Player3D _player;
 	private StatAllocationUI _statsUI;
-
-	private readonly Color[] _skillColors = new[] {
-		new Color(0.95f, 0.75f, 0.0f),    // Yellow - Heavy
-		new Color(0.95f, 0.1f, 0.1f)      // Red - Special
-	};
 
 	public override void _Ready()
 	{
+		// Find Player3D
 		_player = GetTree().Root.GetChild(0).FindChild("Player3D", true, false) as Player3D;
-		if (_player == null) { return; }
+		if (_player == null)
+		{
+			GD.PrintErr("Player3D not found!");
+			return;
+		}
 
+		// Find Stats UI
 		_statsUI = _player.StatsUI;
 
-		AnchorLeft = AnchorTop = 0.0f;
-		AnchorRight = AnchorBottom = 1.0f;
+		// Find health nodes
+		_healthValue = GetNode<Label>("HealthContainer/HealthVBox/HealthValue");
+		_healthBar = GetNode<ProgressBar>("HealthContainer/HealthVBox/HealthBar");
+		
+		// Find level nodes
+		_levelTitle = GetNode<Label>("LevelContainer/LevelVBox/LevelTitle");
+		_xpBar = GetNode<ProgressBar>("LevelContainer/LevelVBox/XPBar");
 
-		CreateUI();
-	}
+		// Find skill buttons
+		_buttonLight = GetNode<Button>("SkillsContainer/Button_Light");
+		_buttonHeavy = GetNode<Button>("SkillsContainer/Button_Heavy");
+		_buttonSpecial = GetNode<Button>("SkillsContainer/Button_Special");
+		_buttonAuto = GetNode<Button>("SkillsContainer/Button_Auto");
+		_buttonStats = GetNode<Button>("SkillsContainer/Button_Stats");
+		_buttonEquip = GetNode<Button>("SkillsContainer/Button_Equip");
 
-	private void CreateUI()
-	{
-		CreateHealthBar();
-		CreateStaminaBar();
-		CreateLevelDisplay();
-		CreateSkillButtons();
-	}
-
-	private void CreateHealthBar()
-	{
-		var container = new PanelContainer();
-		container.AnchorLeft = 0.0f;
-		container.AnchorTop = 0.0f;
-		container.AnchorRight = 0.25f;
-		container.AnchorBottom = 0.15f;
-		container.OffsetLeft = 10;
-		container.OffsetTop = 10;
-		container.OffsetRight = -10;
-		container.OffsetBottom = -10;
-
-		var bgStyle = new StyleBoxFlat { BgColor = new Color(0.02f, 0.02f, 0.02f, 0.9f) };
-		container.AddThemeStyleboxOverride("panel", bgStyle);
-
-		var vbox = new VBoxContainer();
-		vbox.AddThemeConstantOverride("separation", 4);
-		container.AddChild(vbox);
-
-		var titleLabel = new Label { Text = "❤ HEALTH" };
-		titleLabel.AddThemeColorOverride("font_color", new Color(1, 0.3f, 0.3f, 1));
-		titleLabel.AddThemeFontSizeOverride("font_size", 14);
-		vbox.AddChild(titleLabel);
-
-		_healthLabel = new Label { Text = "100 / 100" };
-		_healthLabel.AddThemeColorOverride("font_color", Colors.White);
-		_healthLabel.AddThemeFontSizeOverride("font_size", 12);
-		vbox.AddChild(_healthLabel);
-
-		_healthBar = new ProgressBar();
+		// Setup health bar
 		_healthBar.MinValue = 0;
 		_healthBar.MaxValue = _player.MaxPlayerHealth;
 		_healthBar.Value = _player._playerHealth;
-		_healthBar.CustomMinimumSize = new Vector2(200, 20);
 
-		var barBg = new StyleBoxFlat { BgColor = new Color(0.1f, 0.1f, 0.1f, 0.9f) };
-		_healthBar.AddThemeStyleboxOverride("background", barBg);
-
-		var barFill = new StyleBoxFlat { BgColor = new Color(1, 0.3f, 0.3f, 1) };
-		_healthBar.AddThemeStyleboxOverride("fill", barFill);
-
-		vbox.AddChild(_healthBar);
-		AddChild(container);
-	}
-
-	private void CreateStaminaBar()
-	{
-		var container = new PanelContainer();
-		container.AnchorLeft = 0.75f;
-		container.AnchorTop = 0.0f;
-		container.AnchorRight = 1.0f;
-		container.AnchorBottom = 0.15f;
-		container.OffsetLeft = 10;
-		container.OffsetTop = 10;
-		container.OffsetRight = -10;
-		container.OffsetBottom = -10;
-
-		var bgStyle = new StyleBoxFlat { BgColor = new Color(0.02f, 0.02f, 0.02f, 0.9f) };
-		container.AddThemeStyleboxOverride("panel", bgStyle);
-
-		var vbox = new VBoxContainer();
-		vbox.AddThemeConstantOverride("separation", 4);
-		container.AddChild(vbox);
-
-		var titleLabel = new Label { Text = "⚡ STAMINA" };
-		titleLabel.AddThemeColorOverride("font_color", new Color(1, 0.9f, 0.2f, 1));
-		titleLabel.AddThemeFontSizeOverride("font_size", 14);
-		vbox.AddChild(titleLabel);
-
-		_staminaLabel = new Label { Text = "100 / 100" };
-		_staminaLabel.AddThemeColorOverride("font_color", Colors.White);
-		_staminaLabel.AddThemeFontSizeOverride("font_size", 12);
-		vbox.AddChild(_staminaLabel);
-
-		_staminaBar = new ProgressBar();
-		_staminaBar.MinValue = 0;
-		_staminaBar.MaxValue = 100;
-		_staminaBar.Value = 100;
-		_staminaBar.CustomMinimumSize = new Vector2(200, 20);
-
-		var barBg = new StyleBoxFlat { BgColor = new Color(0.1f, 0.1f, 0.1f, 0.9f) };
-		_staminaBar.AddThemeStyleboxOverride("background", barBg);
-
-		var barFill = new StyleBoxFlat { BgColor = new Color(1, 0.9f, 0.2f, 1) };
-		_staminaBar.AddThemeStyleboxOverride("fill", barFill);
-
-		vbox.AddChild(_staminaBar);
-		AddChild(container);
-	}
-
-	private void CreateLevelDisplay()
-	{
-		var container = new PanelContainer();
-		container.AnchorLeft = 0.35f;
-		container.AnchorTop = 0.0f;
-		container.AnchorRight = 0.65f;
-		container.AnchorBottom = 0.15f;
-		container.OffsetLeft = 10;
-		container.OffsetTop = 10;
-		container.OffsetRight = -10;
-		container.OffsetBottom = -10;
-
-		var bgStyle = new StyleBoxFlat { BgColor = new Color(0.02f, 0.02f, 0.02f, 0.9f) };
-		container.AddThemeStyleboxOverride("panel", bgStyle);
-
-		var vbox = new VBoxContainer();
-		vbox.AddThemeConstantOverride("separation", 4);
-		container.AddChild(vbox);
-
-		_levelLabel = new Label { Text = "⭐ LEVEL 1" };
-		_levelLabel.AddThemeColorOverride("font_color", new Color(1, 1, 0, 1));
-		_levelLabel.AddThemeFontSizeOverride("font_size", 20);
-		_levelLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		vbox.AddChild(_levelLabel);
-
-		_xpLabel = new Label { Text = "XP: 0 / 100" };
-		_xpLabel.AddThemeColorOverride("font_color", Colors.White);
-		_xpLabel.AddThemeFontSizeOverride("font_size", 12);
-		_xpLabel.HorizontalAlignment = HorizontalAlignment.Center;
-		vbox.AddChild(_xpLabel);
-
-		_xpBar = new ProgressBar();
+		// Setup XP bar
 		_xpBar.MinValue = 0;
 		_xpBar.MaxValue = 100;
 		_xpBar.Value = 0;
-		_xpBar.CustomMinimumSize = new Vector2(200, 16);
 
-		var barBg = new StyleBoxFlat { BgColor = new Color(0.1f, 0.1f, 0.1f, 0.9f) };
-		_xpBar.AddThemeStyleboxOverride("background", barBg);
-
-		var barFill = new StyleBoxFlat { BgColor = new Color(0.3f, 0.8f, 1f, 1) };
-		_xpBar.AddThemeStyleboxOverride("fill", barFill);
-
-		vbox.AddChild(_xpBar);
-		AddChild(container);
-	}
-
-	private void CreateSkillButtons()
-	{
-		var vbox = new VBoxContainer();
-		vbox.AnchorLeft = 0.93f;
-		vbox.AnchorTop = 0.2f;
-		vbox.AnchorRight = 1.0f;
-		vbox.AnchorBottom = 1.0f;
-		vbox.OffsetLeft = -80;
-		vbox.OffsetTop = 0;
-		vbox.OffsetRight = -5;
-		vbox.OffsetBottom = -10;
-		vbox.AddThemeConstantOverride("separation", 8);
-
-		// AUTO BATTLE BUTTON
-		var autoBattleBtn = new Button { Text = "⚔️ AUTO" };
-		autoBattleBtn.CustomMinimumSize = new Vector2(70, 40);
-		autoBattleBtn.AddThemeFontSizeOverride("font_size", 16);
-		autoBattleBtn.AddThemeColorOverride("font_color", Colors.White);
-		var autoBattleStyle = new StyleBoxFlat { BgColor = new Color(0.6f, 0.3f, 0.8f, 1) };
-		autoBattleBtn.AddThemeStyleboxOverride("normal", autoBattleStyle);
-		autoBattleBtn.Pressed += () => {
-			if (_player != null)
-			{
-				_player._isAutoBattle = !_player._isAutoBattle;
-				var activeStyle = new StyleBoxFlat { BgColor = new Color(0.9f, 0.2f, 0.2f, 1) };
-				var inactiveStyle = new StyleBoxFlat { BgColor = new Color(0.6f, 0.3f, 0.8f, 1) };
-				autoBattleBtn.AddThemeStyleboxOverride("normal", 
-					_player._isAutoBattle ? activeStyle : inactiveStyle);
-			}
-		};
-		vbox.AddChild(autoBattleBtn);
-
-		// ONLY 2 SKILL BUTTONS (Heavy and Special, NOT Light)
-		var skills = new[] {
-			("2", _skillColors[0], (Action)(() => SelectSkill(2))),  // Heavy
-			("3", _skillColors[1], (Action)(() => SelectSkill(3)))   // Special
-		};
-
-		Button[] buttons = new Button[2];
-		Control[] overlays = new Control[2];
-		Label[] cooldownLabels = new Label[2];
-
-		for (int i = 0; i < 2; i++)
-		{
-			var btnContainer = new PanelContainer();
-			btnContainer.CustomMinimumSize = new Vector2(70, 70);
-
-			var btn = new Button { Text = skills[i].Item1 };
-			btn.Pressed += skills[i].Item3;
-			btn.AnchorLeft = btn.AnchorRight = btn.AnchorTop = btn.AnchorBottom = 0.5f;
-
-			var normalStyle = new StyleBoxFlat { BgColor = skills[i].Item2 };
-			btn.AddThemeStyleboxOverride("normal", normalStyle);
-
-			var hoverStyle = new StyleBoxFlat { BgColor = skills[i].Item2 * 1.25f };
-			btn.AddThemeStyleboxOverride("hover", hoverStyle);
-
-			var pressStyle = new StyleBoxFlat { BgColor = skills[i].Item2 * 1.4f };
-			btn.AddThemeStyleboxOverride("focus", pressStyle);
-			btn.AddThemeStyleboxOverride("pressed", pressStyle);
-
-			btn.AddThemeColorOverride("font_color", Colors.White);
-			btn.AddThemeFontSizeOverride("font_size", 40);
-
-			btnContainer.AddChild(btn);
-
-			var overlay = new Control { Visible = false };
-			overlay.AnchorLeft = overlay.AnchorTop = 0.0f;
-			overlay.AnchorRight = overlay.AnchorBottom = 1.0f;
-
-			var overlayPanel = new Panel();
-			overlayPanel.AnchorLeft = overlayPanel.AnchorTop = 0.0f;
-			overlayPanel.AnchorRight = overlayPanel.AnchorBottom = 1.0f;
-			var overlayStyle = new StyleBoxFlat { BgColor = new Color(0.1f, 0.05f, 0.05f, 0.9f) };
-			overlayPanel.AddThemeStyleboxOverride("panel", overlayStyle);
-			overlay.AddChild(overlayPanel);
-
-			var cooldownLabel = new Label { Text = "●" };
-			cooldownLabel.AddThemeColorOverride("font_color", new Color(1, 1, 0, 1));
-			cooldownLabel.AddThemeFontSizeOverride("font_size", 24);
-			cooldownLabel.AnchorLeft = cooldownLabel.AnchorTop = 0.5f;
-			cooldownLabel.AnchorRight = cooldownLabel.AnchorBottom = 0.5f;
-			cooldownLabel.OffsetLeft = cooldownLabel.OffsetTop = -12;
-			overlay.AddChild(cooldownLabel);
-
-			btnContainer.AddChild(overlay);
-			vbox.AddChild(btnContainer);
-
-			buttons[i] = btn;
-			overlays[i] = overlay;
-			cooldownLabels[i] = cooldownLabel;
-		}
-
-		_heavyBtn = buttons[0];
-		_specialBtn = buttons[1];
-		_heavyOverlay = overlays[0];
-		_specialOverlay = overlays[1];
-		_heavyCooldown = cooldownLabels[0];
-		_specialCooldown = cooldownLabels[1];
-
-		// STATS BUTTON
-		var statsBtn = new Button { Text = "📊 STATS" };
-		statsBtn.CustomMinimumSize = new Vector2(70, 40);
-		statsBtn.AddThemeFontSizeOverride("font_size", 14);
-		statsBtn.AddThemeColorOverride("font_color", Colors.White);
-		var statsStyle = new StyleBoxFlat { BgColor = new Color(0.2f, 0.6f, 0.8f, 1) };
-		statsBtn.AddThemeStyleboxOverride("normal", statsStyle);
-		
-		var statsHoverStyle = new StyleBoxFlat { BgColor = new Color(0.3f, 0.8f, 1.0f, 1) };
-		statsBtn.AddThemeStyleboxOverride("hover", statsHoverStyle);
-		
-		var statsPressStyle = new StyleBoxFlat { BgColor = new Color(0.4f, 0.9f, 1.0f, 1) };
-		statsBtn.AddThemeStyleboxOverride("focus", statsPressStyle);
-		statsBtn.AddThemeStyleboxOverride("pressed", statsPressStyle);
-		
-		statsBtn.Pressed += () => {
-			if (_statsUI != null)
-			{
-				_statsUI.ToggleStatsPanel();
-			}
-		};
-		vbox.AddChild(statsBtn);
-
-		AddChild(vbox);
+		// Connect button signals
+		_buttonLight.Pressed += () => SelectAttack(1);
+		_buttonHeavy.Pressed += () => SelectAttack(2);
+		_buttonSpecial.Pressed += () => SelectAttack(3);
+		_buttonAuto.Pressed += () => ToggleAutoBattle();
+		_buttonStats.Pressed += () => OpenStats();
+		_buttonEquip.Pressed += () => ToggleSwordEquip();
 	}
 
 	public override void _Process(double delta)
 	{
 		if (_player == null) return;
 
-		UpdateBars();
-		UpdateCooldowns();
+		UpdateHealthDisplay();
 		UpdateLevelDisplay();
-		HandleInput();
+		UpdateButtonStyles();
 	}
 
-	private void UpdateBars()
+	private void UpdateHealthDisplay()
 	{
-		_healthLabel.Text = $"{_player._playerHealth:F0} / {_player.MaxPlayerHealth:F0}";
+		_healthValue.Text = $"{_player._playerHealth:F0} / {_player.MaxPlayerHealth:F0}";
 		_healthBar.Value = _player._playerHealth;
 	}
 
 	private void UpdateLevelDisplay()
 	{
-		if (_player?.LevelingSystem == null) return;
+		if (_player.LevelingSystem == null) return;
 
-		_levelLabel.Text = $"⭐ LEVEL {_player.LevelingSystem.CurrentLevel}";
-		_xpLabel.Text = $"XP: {_player.LevelingSystem.CurrentXP:F0} / {_player.LevelingSystem.XPRequiredForNextLevel:F0}";
-		
+		_levelTitle.Text = $"⭐ LEVEL {_player.LevelingSystem.CurrentLevel}";
+
 		float xpPercent = _player.LevelingSystem.CurrentXP / _player.LevelingSystem.XPRequiredForNextLevel;
 		_xpBar.Value = Mathf.Clamp(xpPercent * 100, 0, 100);
 	}
 
-	private void UpdateCooldowns()
+	private void UpdateButtonStyles()
 	{
-		UpdateCooldown(_heavyOverlay, _heavyCooldown, _player._heavyAttackCooldownTimer);
-		UpdateCooldown(_specialOverlay, _specialCooldown, _player._specialAttackCooldownTimer);
-	}
+		// Reset attack buttons
+		ResetButtonStyle(_buttonLight, new Color(0.1f, 0.9f, 0.1f, 0.9f));  // Green
+		ResetButtonStyle(_buttonHeavy, new Color(0.95f, 0.75f, 0.0f, 0.9f)); // Yellow
+		ResetButtonStyle(_buttonSpecial, new Color(0.95f, 0.1f, 0.1f, 0.9f)); // Red
 
-	private void UpdateCooldown(Control overlay, Label label, float timer)
-	{
-		overlay.Visible = timer > 0;
-		if (timer > 0)
+		// Highlight selected attack mode
+		if (_player._attackModeTimer > 0)
 		{
-			label.Text = $"{timer:F1}s";
-			label.AddThemeFontSizeOverride("font_size", 22);
-			label.AddThemeColorOverride("font_color", new Color(1, 1, 0, 1));
+			switch (_player._currentAttackMode)
+			{
+				case Player3D.AttackMode.Light:
+					HighlightButton(_buttonLight, new Color(0.1f, 0.9f, 0.1f, 0.9f));
+					break;
+				case Player3D.AttackMode.Heavy:
+					HighlightButton(_buttonHeavy, new Color(0.95f, 0.75f, 0.0f, 0.9f));
+					break;
+				case Player3D.AttackMode.Special:
+					HighlightButton(_buttonSpecial, new Color(0.95f, 0.1f, 0.1f, 0.9f));
+					break;
+			}
+		}
+
+		// Update auto battle button
+		if (_player._isAutoBattle)
+		{
+			var activeStyle = new StyleBoxFlat { BgColor = new Color(0.9f, 0.2f, 0.2f, 0.9f) };
+			activeStyle.SetBorderWidthAll(3);
+			activeStyle.BorderColor = Colors.White;
+			_buttonAuto.AddThemeStyleboxOverride("normal", activeStyle);
+		}
+		else
+		{
+			var inactiveStyle = new StyleBoxFlat { BgColor = new Color(0.7f, 0.35f, 1.0f, 0.9f) };
+			inactiveStyle.SetBorderWidthAll(2);
+			inactiveStyle.BorderColor = Colors.White;
+			_buttonAuto.AddThemeStyleboxOverride("normal", inactiveStyle);
+		}
+
+		// Update equip button
+		if (_player._isSwordEquipped)
+		{
+			var equippedStyle = new StyleBoxFlat { BgColor = new Color(0.1f, 0.9f, 0.1f, 0.9f) };  // Bright green
+			equippedStyle.SetBorderWidthAll(3);
+			equippedStyle.BorderColor = Colors.White;
+			_buttonEquip.AddThemeStyleboxOverride("normal", equippedStyle);
+		}
+		else
+		{
+			var unequippedStyle = new StyleBoxFlat { BgColor = new Color(0.6f, 0.35f, 0.8f, 0.9f) };  // Purple
+			unequippedStyle.SetBorderWidthAll(2);
+			unequippedStyle.BorderColor = Colors.White;
+			_buttonEquip.AddThemeStyleboxOverride("normal", unequippedStyle);
 		}
 	}
 
-	private void HandleInput()
+	private void ResetButtonStyle(Button btn, Color color)
 	{
-		if (Input.IsKeyPressed(Key.Key2)) SelectSkill(2);
-		if (Input.IsKeyPressed(Key.Key3)) SelectSkill(3);
+		var style = new StyleBoxFlat { BgColor = color };
+		style.SetBorderWidthAll(2);
+		style.BorderColor = Colors.White;
+		btn.AddThemeStyleboxOverride("normal", style);
 	}
 
-	private void SelectSkill(int skillNum)
+	private void HighlightButton(Button btn, Color color)
 	{
+		var style = new StyleBoxFlat { BgColor = color * 1.3f };
+		style.SetBorderWidthAll(3);
+		style.BorderColor = Colors.White;
+		btn.AddThemeStyleboxOverride("normal", style);
+	}
+
+	private void SelectAttack(int skillNum)
+	{
+		if (_player == null) return;
+
 		_player._currentAttackMode = skillNum switch
 		{
+			1 => Player3D.AttackMode.Light,
 			2 => Player3D.AttackMode.Heavy,
 			3 => Player3D.AttackMode.Special,
 			_ => Player3D.AttackMode.None
 		};
 		_player._attackModeTimer = _player.AttackModeWindowTime;
+	}
+
+	private void ToggleAutoBattle()
+	{
+		if (_player == null) return;
+
+		_player._isAutoBattle = !_player._isAutoBattle;
+	}
+
+	private void ToggleSwordEquip()
+	{
+		if (_player == null) return;
+
+		_player._isSwordEquipped = !_player._isSwordEquipped;
+		
+		// Show/hide sword in hand
+		var swordRoot = _player.FindChild("antique_estoc_1k", true, false);
+		if (swordRoot != null)
+		{
+			if (swordRoot is Node3D node3d)
+			{
+				node3d.Visible = _player._isSwordEquipped;
+			}
+		}
+	}
+
+	private void OpenStats()
+	{
+		if (_statsUI != null)
+		{
+			_statsUI.ToggleStatsPanel();
+		}
 	}
 }

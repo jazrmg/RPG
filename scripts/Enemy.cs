@@ -1,24 +1,22 @@
 using Godot;
-using System.Collections.Generic;
 
 public partial class Enemy : CharacterBody3D
 {
 	[Export] public float Speed = 2.5f;
-	[Export] public float Acceleration = 25.0f;  // ✨ INCREASED: From 18 to 25 for snappier response
+	[Export] public float Acceleration = 25.0f;
 	[Export] public float Deceleration = 15.0f;
 	[Export] public float Friction = 0.90f;
 	[Export] public float ChaseRange = 20.0f;
-	[Export] public float StopDistance = 2.5f;  // ✨ INCREASED: From 1.5 to 2.5 to prevent collision backup
-	[Export] public float RotationSpeed = 12.0f;  // ✨ SMOOTHED: From 10.0 to 12.0 for smoother turns
+	[Export] public float StopDistance = 1.5f;
+	[Export] public float RotationSpeed = 12.0f;
 	[Export] public float MaxHealth = 100.0f;
 	[Export] public float KnockbackResistance = 0.3f;
-	[Export] public float KnockbackDamping = 0.80f;  // ✨ IMPROVED: From 0.85 to 0.80 for smoother recovery
+	[Export] public float KnockbackDamping = 0.80f;
 	[Export] public float HealthBarHeightOffset = 2.5f;
 	[Export] public float SpawnInvulnerabilityTime = 0.5f;
 	[Export] public float DamageToPlayer = 15.0f;
 	[Export] public float AttackCooldown = 0.8f;
 
-	// ✨ PUBLIC ACCESS: Current health for auto battle AI
 	public float CurrentHealth => _currentHealth;
 
 	private const string PlayerGroup = "player";
@@ -103,8 +101,7 @@ public partial class Enemy : CharacterBody3D
 
 		if (_isAttacking)
 		{
-			// ✨ FIXED: Stop immediately when attacking (no backing up!)
-			horizontalVelocity = Vector3.Zero;
+			horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, Deceleration * 1.5f * dt);
 			SetWalking(false);
 		}
 		else if (shouldChase && !toPlayer.IsZeroApprox())
@@ -112,7 +109,6 @@ public partial class Enemy : CharacterBody3D
 			Vector3 direction = toPlayer.Normalized();
 			Vector3 desiredVelocity = direction * Speed;
 
-			// ✨ SMOOTHED: Better acceleration lerp (0.9x multiplier for smoother feel)
 			horizontalVelocity = horizontalVelocity.Lerp(desiredVelocity, Acceleration * 0.9f * dt);
 
 			RotateTowardDirection(direction, dt);
@@ -122,12 +118,10 @@ public partial class Enemy : CharacterBody3D
 		{
 			if (IsOnFloor())
 			{
-				// ✨ SMOOTHED: Better friction (0.90 -> 0.92 for less abrupt stops)
 				horizontalVelocity *= 0.92f;
 			}
 			else
 			{
-				// ✨ SMOOTHED: Better air deceleration
 				horizontalVelocity = horizontalVelocity.Lerp(Vector3.Zero, Deceleration * 1.2f * dt);
 			}
 
@@ -136,9 +130,8 @@ public partial class Enemy : CharacterBody3D
 		}
 
 		_knockbackVelocity *= KnockbackDamping;
-		// ✨ SMOOTHED: Even smoother knockback recovery (0.12 -> 0.15 for better easing)
 		_knockbackVelocity = _knockbackVelocity.Lerp(Vector3.Zero, 0.15f);
-		if (_knockbackVelocity.Length() < 0.005f)  // ✨ Earlier reset (0.01 -> 0.005)
+		if (_knockbackVelocity.Length() < 0.005f)
 		{
 			_knockbackVelocity = Vector3.Zero;
 		}
@@ -150,7 +143,6 @@ public partial class Enemy : CharacterBody3D
 
 		_attackCooldownTimer -= dt;
 
-		// ✨ IMPROVED: Attack range is StopDistance + small buffer for responsive hits
 		float attackRange = StopDistance + 0.4f;
 		if (_player != null && distance <= attackRange && _attackCooldownTimer <= 0.0f)
 		{
@@ -207,13 +199,11 @@ public partial class Enemy : CharacterBody3D
 		if (walking)
 		{
 			_animPlayer.Play(_walkAnim);
-			// ✨ SMOOTHED: Snappier walk animation (1.1x speed)
 			_animPlayer.SpeedScale = 1.1f;
 		}
 		else
 		{
 			_animPlayer.Stop();
-			// ✨ SMOOTHED: Reset animation speed
 			_animPlayer.SpeedScale = 1.0f;
 		}
 	}
@@ -262,10 +252,8 @@ public partial class Enemy : CharacterBody3D
 				return "";
 			}
 
-			// ✨ FIXED: Don't try to get library, just create new one if needed
 			AnimationLibrary library = null;
 			
-			// Try to get existing library, but don't catch exceptions - just create new
 			try
 			{
 				if (_animPlayer.HasAnimationLibrary("EnemyAnims"))
@@ -275,11 +263,9 @@ public partial class Enemy : CharacterBody3D
 			}
 			catch
 			{
-				// If any error, we'll create a new one below
 				library = null;
 			}
 
-			// If library doesn't exist or failed to load, create new one
 			if (library == null)
 			{
 				library = new AnimationLibrary();
@@ -308,7 +294,6 @@ public partial class Enemy : CharacterBody3D
 			return;
 		}
 
-		// ✨ FIXED: Use HasAnimationLibrary check before getting
 		AnimationLibrary library = null;
 		try
 		{
@@ -423,6 +408,7 @@ public partial class Enemy : CharacterBody3D
 		if (camera == null) return;
 
 		Label damageLabel = new Label();
+		damageLabel.ZIndex = 100;
 		
 		if (isCritical)
 		{
@@ -437,7 +423,6 @@ public partial class Enemy : CharacterBody3D
 		
 		int fontSize = isCritical ? 40 : 32;
 		damageLabel.AddThemeFontSizeOverride("font_size", fontSize);
-		damageLabel.ZIndex = 100;
 		
 		Vector3 worldPos = GlobalPosition + Vector3.Up * 2.5f;
 		Vector2 screenPos = camera.UnprojectPosition(worldPos);
@@ -456,14 +441,6 @@ public partial class Enemy : CharacterBody3D
 			if (damageLabel != null && IsInstanceValid(damageLabel))
 				damageLabel.QueueFree();
 		}));
-		
-		// Safety timeout - delete label after 2 seconds if tween fails
-		GetTree().CreateTimer(2.0f).Timeout += () => {
-			if (damageLabel != null && IsInstanceValid(damageLabel))
-			{
-				damageLabel.QueueFree();
-			}
-		};
 	}
 
 	public void TakeDamage(float damage, Vector3 knockbackDirection, float knockbackForce, bool isCritical = false)
@@ -487,29 +464,23 @@ public partial class Enemy : CharacterBody3D
 	private void Die()
 	{
 		SetPhysicsProcess(false);
-		RemoveFromGroup("enemy");  // ✨ NEW: Remove from group BEFORE spawning!
 		SpawnRespawnEnemies();
 		QueueFree();
 	}
 
 	public void FlashHit()
 	{
-		// Find first MeshInstance3D in the enemy (works with any structure)
 		MeshInstance3D meshInstance = FindFirstMeshInstance(this);
 		if (meshInstance == null) return;
 
-		// Store original material
 		Material originalMaterial = meshInstance.GetActiveMaterial(0);
 		if (originalMaterial == null) return;
 
-		// Create white material for flash
 		var flashMaterial = new StandardMaterial3D();
 		flashMaterial.AlbedoColor = Colors.White;
 
-		// Apply white material
 		meshInstance.SetSurfaceOverrideMaterial(0, flashMaterial);
 
-		// Return to normal after short duration
 		GetTree().CreateTimer(0.1f).Timeout += () => {
 			if (meshInstance != null && IsInstanceValid(meshInstance) && originalMaterial != null)
 			{
@@ -520,7 +491,6 @@ public partial class Enemy : CharacterBody3D
 
 	private MeshInstance3D FindFirstMeshInstance(Node node)
 	{
-		// Recursively search for first MeshInstance3D
 		if (node is MeshInstance3D mesh)
 			return mesh;
 
@@ -539,13 +509,6 @@ public partial class Enemy : CharacterBody3D
 		Node parent = GetParent();
 		if (parent == null) return;
 
-		// ✨ NEW: Check max enemy limit to prevent lag
-		var enemies = GetTree().GetNodesInGroup("enemy");
-		if (enemies.Count >= 8)  // Max 8 enemies at once
-		{
-			return;  // Don't spawn more enemies
-		}
-
 		string scenePath = GetSceneFilePath();
 		if (string.IsNullOrEmpty(scenePath)) return;
 
@@ -560,7 +523,6 @@ public partial class Enemy : CharacterBody3D
 			Node spawnedNode1 = enemyScene.Instantiate();
 			parent.AddChild(spawnedNode1);
 			spawnedNode1.Set("global_position", spawnOffset1);
-			// ✨ FIXED: _Ready() automatically calls SetupEnemy(), so don't call it again
 			spawnedNode1.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
 		}
 		catch
@@ -572,7 +534,6 @@ public partial class Enemy : CharacterBody3D
 			Node spawnedNode2 = enemyScene.Instantiate();
 			parent.AddChild(spawnedNode2);
 			spawnedNode2.Set("global_position", spawnOffset2);
-			// ✨ FIXED: Same here - _Ready() handles initialization
 			spawnedNode2.CallDeferred("SetInvulnerabilityTimer", SpawnInvulnerabilityTime);
 		}
 		catch
@@ -611,7 +572,6 @@ public partial class Enemy : CharacterBody3D
 			try
 			{
 				_animPlayer.Play(_attackAnim);
-				// ✨ SMOOTHED: Even faster attacks (1.5 -> 1.6 for snappier feel)
 				_animPlayer.SpeedScale = 1.6f;
 
 				Animation attackAnimation = _animPlayer.GetAnimation(_attackAnim);

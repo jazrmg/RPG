@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://caa2tm1pr86vh"]
+
+[node name="SkillUIManagerUI" type="Control" unique_id=1723605201]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
